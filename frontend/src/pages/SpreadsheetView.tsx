@@ -194,22 +194,40 @@ export function SpreadsheetView() {
     if (!spreadsheet?.id) return newRow;
 
     try {
-      const rowData = {
-        Company: newRow.Company || '',
-        'Primary Contact': newRow['Primary Contact'] || '',
-        'Deal Value': newRow['Deal Value'] || 0,
-        'Next Steps': newRow['Next Steps'] || '',
-      };
+      // Dynamically build row_data from all columns
+      const rowData: Record<string, any> = {};
+      
+      spreadsheet.columns.forEach(col => {
+        const value = newRow[col.name];
+        
+        // Handle different column types
+        switch (col.column_type.toLowerCase()) {
+          case 'number':
+          case 'currency':
+            rowData[col.name] = value ? Number(value) : null;
+            break;
+          case 'boolean':
+            rowData[col.name] = Boolean(value);
+            break;
+          case 'select':
+            // For multi-select, ensure it's an array
+            if (col.validation_rules?.multiple) {
+              rowData[col.name] = Array.isArray(value) ? value : (value ? [value] : []);
+            } else {
+              rowData[col.name] = value || null;
+            }
+            break;
+          default:
+            rowData[col.name] = value || '';
+        }
+      });
 
       if (newRow.isNew) {
         // Create new row
         const createdRow = await spreadsheetService.createRow(spreadsheet.id, { row_data: rowData });
         const updatedRow = { 
           id: createdRow.id, 
-          Company: rowData.Company,
-          'Primary Contact': rowData['Primary Contact'],
-          'Deal Value': rowData['Deal Value'],
-          'Next Steps': rowData['Next Steps']
+          ...rowData
         };
         setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
         setSnackbar({ message: 'Row created successfully', severity: 'success' });
@@ -251,67 +269,33 @@ export function SpreadsheetView() {
         
         const spreadsheetData = await spreadsheetResponse.json();
         
-        // Get rows
+        // Get columns and rows
+        const columnsData = await spreadsheetService.getColumns(id);
         const rowsData = await spreadsheetService.getRows(id);
-        
-        // Create mock columns for now since we have the basic structure
-        const mockColumns: SpreadsheetColumn[] = [
-          {
-            id: '1',
-            spreadsheet_id: id,
-            name: 'Company',
-            column_type: 'text',
-            position: 1,
-            is_required: false,
-            validation_rules: {},
-            display_options: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: '2',
-            spreadsheet_id: id,
-            name: 'Primary Contact',
-            column_type: 'text',
-            position: 2,
-            is_required: false,
-            validation_rules: {},
-            display_options: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: '3',
-            spreadsheet_id: id,
-            name: 'Deal Value',
-            column_type: 'number',
-            position: 3,
-            is_required: false,
-            validation_rules: {},
-            display_options: { format: 'currency' },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ];
 
         setSpreadsheet({
           id,
           name: spreadsheetData.data?.name || `Spreadsheet ${id}`,
           description: spreadsheetData.data?.description || 'Sales Engineering Pipeline',
-          columns: mockColumns,
+          columns: columnsData || [],
           rows: rowsData || [],
           created_at: spreadsheetData.data?.created_at || new Date().toISOString(),
           updated_at: spreadsheetData.data?.updated_at || new Date().toISOString()
         });
 
-        // Convert rows to DataGrid format
-        const gridRows = (rowsData || []).map(row => ({
-          id: row.id,
-          Company: row.row_data.Company || '',
-          'Primary Contact': row.row_data['Primary Contact'] || '',
-          'Deal Value': row.row_data['Deal Value'] || 0,
-          'Next Steps': row.row_data['Next Steps'] || '',
-        }));
+        // Convert rows to DataGrid format - dynamically map all columns
+        const gridRows = (rowsData || []).map(row => {
+          const gridRow: any = { id: row.id };
+          
+          // Map all column values from row_data
+          columnsData?.forEach(col => {
+            gridRow[col.name] = row.row_data[col.name] || (
+              col.column_type.toLowerCase() === 'select' && col.validation_rules?.multiple ? [] : ''
+            );
+          });
+          
+          return gridRow;
+        });
         setRows(gridRows);
         setLoading(false);
       } catch (err) {
@@ -700,18 +684,37 @@ export function SpreadsheetView() {
             startIcon={<AddIcon />}
             onClick={() => {
               const id = Math.random().toString(36).substr(2, 9);
-              const newRow = { 
-                id, 
-                Company: '',
-                'Primary Contact': '',
-                'Deal Value': 0,
-                'Next Steps': '',
-                isNew: true 
-              };
+              const newRow: any = { id, isNew: true };
+              
+              // Initialize with default values for all columns
+              spreadsheet?.columns.forEach(col => {
+                switch (col.column_type.toLowerCase()) {
+                  case 'number':
+                  case 'currency':
+                    newRow[col.name] = col.default_value ? Number(col.default_value) : null;
+                    break;
+                  case 'boolean':
+                    newRow[col.name] = col.default_value ? Boolean(col.default_value) : false;
+                    break;
+                  case 'select':
+                    if (col.validation_rules?.multiple) {
+                      newRow[col.name] = [];
+                    } else {
+                      newRow[col.name] = col.default_value || null;
+                    }
+                    break;
+                  default:
+                    newRow[col.name] = col.default_value || '';
+                }
+              });
+
               setRows((oldRows) => [...oldRows, newRow]);
               setRowModesModel((oldModel) => ({
                 ...oldModel,
-                [id]: { mode: GridRowModes.Edit, fieldToFocus: 'Company' },
+                [id]: { 
+                  mode: GridRowModes.Edit, 
+                  fieldToFocus: spreadsheet?.columns.sort((a, b) => a.position - b.position)[0]?.name 
+                },
               }));
             }}
           >
@@ -722,64 +725,152 @@ export function SpreadsheetView() {
           <DataGrid
             rows={rows}
             columns={[
-              {
-                field: 'Company',
-                headerName: 'Company',
-                width: 200,
-                editable: true,
-              },
-              {
-                field: 'Primary Contact',
-                headerName: 'Primary Contact',
-                width: 200,
-                editable: true,
-              },
-              {
-                field: 'Deal Value',
-                headerName: 'Deal Value',
-                width: 150,
-                editable: true,
-                type: 'number',
-                valueFormatter: (value: any) => {
-                  if (value == null) return '';
-                  return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                  }).format(value);
-                },
-              },
-              {
-                field: 'technicalWin',
-                headerName: 'Technical Win',
-                width: 150,
-                sortable: false,
-                disableColumnMenu: true,
-                renderCell: (params) => {
-                  const { status, color } = getTechnicalWinStatus(params.id.toString());
-                  
-                  return (
-                    <Chip
-                      label={status}
-                      size="small"
-                      sx={{
-                        backgroundColor: color,
-                        color: 'white',
-                        fontWeight: 'bold',
-                        '&:hover': {
-                          backgroundColor: color,
-                          filter: 'brightness(1.1)',
+              // Dynamic columns generated from spreadsheet column definitions
+              ...spreadsheet.columns
+                .sort((a, b) => a.position - b.position)
+                .map((col): GridColDef => {
+                  const baseColumn: GridColDef = {
+                    field: col.name,
+                    headerName: col.name,
+                    width: 200,
+                    editable: true,
+                  };
+
+                  // Handle different column types
+                  switch (col.column_type.toLowerCase()) {
+                    case 'number':
+                    case 'currency':
+                      return {
+                        ...baseColumn,
+                        type: 'number',
+                        valueFormatter: (value: any) => {
+                          if (value == null || value === '') return '';
+                          return new Intl.NumberFormat('en-US', {
+                            style: col.column_type.toLowerCase() === 'currency' ? 'currency' : 'decimal',
+                            currency: 'USD',
+                          }).format(value);
                         },
-                      }}
-                    />
-                  );
-                },
-              },
-              {
-                field: 'Next Steps',
-                headerName: 'Next Steps',
-                width: 200,
-                editable: true,
-              },
+                      };
+                    
+                    case 'select':
+                      return {
+                        ...baseColumn,
+                        width: 250,
+                        renderCell: (params) => {
+                          const value = params.value;
+                          
+                          // Handle multi-select (Owner column)
+                          if (col.validation_rules?.multiple && Array.isArray(value)) {
+                            const options = col.validation_rules?.options || [];
+                            return (
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {value.map((selectedValue: string) => {
+                                  const option = options.find((opt: any) => opt.value === selectedValue);
+                                  return (
+                                    <Chip
+                                      key={selectedValue}
+                                      label={option?.label || selectedValue}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ fontSize: '0.75rem' }}
+                                    />
+                                  );
+                                })}
+                                {value.length === 0 && (
+                                  <Typography variant="caption" color="textSecondary">
+                                    {col.display_options?.placeholder || 'Select...'}
+                                  </Typography>
+                                )}
+                              </Box>
+                            );
+                          }
+                          
+                          // Handle single select
+                          const options = col.validation_rules?.options || [];
+                          const option = options.find((opt: any) => opt.value === value);
+                          return option ? (
+                            <Chip
+                              label={option.label}
+                              size="small"
+                              variant="outlined"
+                            />
+                          ) : (
+                            <Typography variant="body2">{value || ''}</Typography>
+                          );
+                        },
+                        renderEditCell: (params) => {
+                          const options = col.validation_rules?.options || [];
+                          const isMultiple = col.validation_rules?.multiple;
+                          
+                          return (
+                            <FormControl fullWidth size="small">
+                              <Select
+                                multiple={isMultiple}
+                                value={isMultiple ? (params.value || []) : (params.value || '')}
+                                onChange={(e) => {
+                                  params.api.setEditCellValue({
+                                    id: params.id,
+                                    field: params.field,
+                                    value: e.target.value,
+                                  });
+                                }}
+                                displayEmpty
+                                renderValue={isMultiple ? (selected: any) => (
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {(selected as string[]).map((value) => {
+                                      const option = options.find((opt: any) => opt.value === value);
+                                      return (
+                                        <Chip
+                                          key={value}
+                                          label={option?.label || value}
+                                          size="small"
+                                        />
+                                      );
+                                    })}
+                                  </Box>
+                                ) : undefined}
+                              >
+                                {options.map((option: any) => (
+                                  <MenuItem key={option.value} value={option.value}>
+                                    {isMultiple && (
+                                      <Checkbox
+                                        checked={(params.value || []).indexOf(option.value) > -1}
+                                        size="small"
+                                      />
+                                    )}
+                                    <Box>
+                                      <Typography variant="body2">{option.label}</Typography>
+                                      {option.role && (
+                                        <Typography variant="caption" color="textSecondary">
+                                          {option.role}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          );
+                        },
+                      };
+                    
+                    case 'date':
+                      return {
+                        ...baseColumn,
+                        type: 'date',
+                        valueGetter: (value: any) => value ? new Date(value) : null,
+                      };
+                    
+                    case 'boolean':
+                      return {
+                        ...baseColumn,
+                        type: 'boolean',
+                      };
+                    
+                    default:
+                      return baseColumn;
+                  }
+                }),
               {
                 field: 'todos',
                 headerName: 'Todos',

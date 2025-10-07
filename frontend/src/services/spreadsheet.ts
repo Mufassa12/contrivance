@@ -32,6 +32,10 @@ export class SpreadsheetService {
     return apiService.delete(`/api/spreadsheets/${id}`);
   }
 
+  async getColumns(spreadsheetId: string): Promise<any[]> {
+    return apiService.get(`/api/spreadsheets/${spreadsheetId}/columns`);
+  }
+
   async getRows(spreadsheetId: string, params?: PaginationParams): Promise<SpreadsheetRow[]> {
     return apiService.get(`/api/spreadsheets/${spreadsheetId}/rows`, params);
   }
