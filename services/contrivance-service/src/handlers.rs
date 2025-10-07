@@ -7,7 +7,7 @@ use crate::{
 };
 use common::WebSocketMessage;
 use common::{
-    ContrivanceResult, CreateSpreadsheetRequest, UpdateSpreadsheetRequest,
+    CreateSpreadsheetRequest, UpdateSpreadsheetRequest,
     CreateRowRequest, UpdateRowRequest, PaginationParams, ApiResponse,
     ContrivanceError,
 };
@@ -410,3 +410,87 @@ pub async fn get_collaborators(
 ) -> Result<HttpResponse, ContrivanceError> {
     data.get_collaborators(req, path).await
 }
+
+pub async fn get_spreadsheets(
+    req: HttpRequest,
+    query: web::Query<PaginationParams>,
+    data: web::Data<ContrivanceHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.list_spreadsheets(req, query).await
+}
+
+// Todo handler functions - temporarily disabled until offline query cache is updated
+/*
+pub async fn create_todo(
+    req: HttpRequest,
+    payload: web::Json<CreateTodoRequest>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.create_todo(req, payload).await
+}
+
+pub async fn get_todos_by_spreadsheet(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.get_todos_by_spreadsheet(req, path).await
+}
+
+pub async fn get_todos_by_row(
+    req: HttpRequest,
+    path: web::Path<(Uuid, Uuid)>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.get_todos_by_row(req, path).await
+}
+
+pub async fn get_todo_stats(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.get_todo_stats(req, path).await
+}
+
+pub async fn get_todo_by_id(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.get_todo_by_id(req, path).await
+}
+
+pub async fn update_todo(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    payload: web::Json<UpdateTodoRequest>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.update_todo(req, path, payload).await
+}
+
+pub async fn delete_todo(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.delete_todo(req, path, payload).await
+}
+
+pub async fn complete_todo(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.complete_todo(req, path).await
+}
+
+pub async fn uncomplete_todo(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.uncomplete_todo(req, path).await
+}
+*/

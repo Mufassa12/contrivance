@@ -43,6 +43,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import { spreadsheetService } from '../services/spreadsheet';
+import { todoService } from '../services/todoService';
 
 interface SpreadsheetData {
   id: string;
@@ -91,31 +92,85 @@ export function Analytics() {
   const [timeRange, setTimeRange] = useState('30d');
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     loadAnalyticsData();
+    
+    // Auto-refresh every 30 seconds for real-time updates
+    const interval = setInterval(() => {
+      loadAnalyticsData(false); // Silent refresh without loading spinner
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [timeRange]);
 
-  const loadAnalyticsData = async () => {
-    setLoading(true);
+  const loadAnalyticsData = async (showLoading: boolean = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     
     try {
       // Fetch real spreadsheet data
       const response = await spreadsheetService.getSpreadsheets();
       const spreadsheets = response.data || [];
       
-      // Load todos from localStorage for each spreadsheet
+      // Load todos using the todo service (both pipeline-level and row-specific)
       const allTodos: { [key: string]: TodoItem[] } = {};
+      const allRowTodos: { [key: string]: { [rowId: string]: TodoItem[] } } = {};
       let totalTodos = 0;
       let completedTodos = 0;
       let totalValue = 0;
       
       // Collect todos and calculate metrics
       for (const sheet of spreadsheets) {
-        const todos = JSON.parse(localStorage.getItem(`todos-${sheet.id}`) || '[]') as TodoItem[];
-        allTodos[sheet.id] = todos;
-        totalTodos += todos.length;
-        completedTodos += todos.filter(todo => todo.completed).length;
+        // Pipeline-level todos
+        const pipelineServiceTodos = todoService.getLocalTodos(sheet.id);
+        const pipelineTodos = pipelineServiceTodos.map(todo => ({
+          id: todo.id,
+          title: todo.title,
+          description: todo.description || '',
+          priority: todo.priority,
+          completed: todo.completed,
+          createdAt: todo.created_at.toString(),
+          dueDate: todo.due_date?.toString() || '',
+          supportingArtifact: todo.supporting_artifact || '',
+        }));
+        
+        allTodos[sheet.id] = pipelineTodos;
+        totalTodos += pipelineTodos.length;
+        completedTodos += pipelineTodos.filter(todo => todo.completed).length;
+        
+        // Row-specific todos
+        allRowTodos[sheet.id] = {};
+        
+        // Fetch rows to get row-specific todos
+        try {
+          const rows = await spreadsheetService.getRows(sheet.id);
+          if (rows && Array.isArray(rows)) {
+            for (const row of rows) {
+              const rowServiceTodos = todoService.getLocalTodos(sheet.id, row.id);
+              const rowTodos = rowServiceTodos.map(todo => ({
+                id: todo.id,
+                title: todo.title,
+                description: todo.description || '',
+                priority: todo.priority,
+                completed: todo.completed,
+                createdAt: todo.created_at.toString(),
+                dueDate: todo.due_date?.toString() || '',
+                supportingArtifact: todo.supporting_artifact || '',
+              }));
+              
+              if (rowTodos.length > 0) {
+                allRowTodos[sheet.id][row.id] = rowTodos;
+                totalTodos += rowTodos.length;
+                completedTodos += rowTodos.filter(todo => todo.completed).length;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`Could not fetch rows for todos calculation ${sheet.id}:`, error);
+        }
         
         // Fetch rows for this spreadsheet to get deal values
         try {
@@ -136,10 +191,16 @@ export function Analytics() {
       const pendingTodos = totalTodos - completedTodos;
       const averageCompletionRate = totalTodos > 0 ? (completedTodos / totalTodos) * 100 : 0;
       
-      // Calculate pipelines by stage based on todo completion rates
+      // Calculate pipelines by stage based on combined todo completion rates
       const pipelinesByStage = await Promise.all(spreadsheets.map(async (sheet) => {
-        const todos = allTodos[sheet.id] || [];
-        const completionRate = todos.length > 0 ? todos.filter(todo => todo.completed).length / todos.length : 0;
+        // Combine pipeline todos and all row todos for this sheet
+        const pipelineTodos = allTodos[sheet.id] || [];
+        const rowTodos = Object.values(allRowTodos[sheet.id] || {}).flat();
+        const allSheetTodos = [...pipelineTodos, ...rowTodos];
+        
+        const completionRate = allSheetTodos.length > 0 
+          ? allSheetTodos.filter(todo => todo.completed).length / allSheetTodos.length 
+          : 0;
         
         let stage = 'Prospecting';
         if (completionRate >= 0.8) stage = 'Negotiation';
@@ -180,8 +241,13 @@ export function Analytics() {
         value: data.value,
       }));
       
-      // Calculate todos by priority
-      const allTodosList = Object.values(allTodos).flat();
+      // Calculate todos by priority (including both pipeline and row todos)
+      const allPipelineTodos = Object.values(allTodos).flat();
+      const allRowTodosList = Object.values(allRowTodos).flatMap(sheetRows => 
+        Object.values(sheetRows).flat()
+      );
+      const allTodosList = [...allPipelineTodos, ...allRowTodosList];
+      
       const priorityCounts = allTodosList.reduce((acc: Record<string, number>, todo) => {
         acc[todo.priority] = (acc[todo.priority] || 0) + 1;
         return acc;
@@ -206,8 +272,13 @@ export function Analytics() {
       
       // Top performers based on completion rate and deal value
       const topPerformers = pipelinesByStage
-        .filter((p) => p.value > 0)
-        .sort((a, b) => (b.completionRate * b.value) - (a.completionRate * a.value))
+        .filter((p) => p.value > 0 || p.completionRate > 0) // Include pipelines with activity even if no deal value
+        .sort((a, b) => {
+          // Sort by completion rate first, then by deal value
+          const scoreA = (a.completionRate * 0.7) + ((a.value / 1000000) * 0.3);
+          const scoreB = (b.completionRate * 0.7) + ((b.value / 1000000) * 0.3);
+          return scoreB - scoreA;
+        })
         .slice(0, 4)
         .map((p) => ({
           company: p.sheet,
@@ -215,22 +286,28 @@ export function Analytics() {
           completionRate: Math.round(p.completionRate * 100),
         }));
       
-      // Activity trend (last 7 days)
+      // Activity trend based on time range selection
+      const daysToShow = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
       const activityTrend = [];
-      for (let i = 6; i >= 0; i--) {
+      
+      for (let i = daysToShow - 1; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
         
+        // Filter todos created on this date
         const todosCreatedOnDate = allTodosList.filter(todo => {
           const todoDate = new Date(todo.createdAt);
           return todoDate.toDateString() === date.toDateString();
         });
         
+        // Get completion count for todos created on this date
+        const completedOnDate = todosCreatedOnDate.filter(todo => todo.completed).length;
+        
         activityTrend.push({
           date: dateStr,
           todos: todosCreatedOnDate.length,
-          completed: todosCreatedOnDate.filter(todo => todo.completed).length,
+          completed: completedOnDate,
         });
       }
       
@@ -248,6 +325,7 @@ export function Analytics() {
       };
       
       setData(realData);
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading analytics data:', error);
       // Fallback to empty data
@@ -269,7 +347,9 @@ export function Analytics() {
       });
     }
     
-    setLoading(false);
+    if (showLoading) {
+      setLoading(false);
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -304,9 +384,16 @@ export function Analytics() {
     <Box sx={{ p: 4 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          Pipeline Analytics
-        </Typography>
+        <Box>
+          <Typography variant="h4" component="h1">
+            Pipeline Analytics
+          </Typography>
+          {lastUpdated && (
+            <Typography variant="body2" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+              🔄 Real-time data • Last updated: {lastUpdated.toLocaleTimeString()}
+            </Typography>
+          )}
+        </Box>
         <FormControl sx={{ minWidth: 120 }}>
           <InputLabel>Time Range</InputLabel>
           <Select
@@ -317,7 +404,6 @@ export function Analytics() {
             <MenuItem value="7d">Last 7 days</MenuItem>
             <MenuItem value="30d">Last 30 days</MenuItem>
             <MenuItem value="90d">Last 90 days</MenuItem>
-            <MenuItem value="1y">Last year</MenuItem>
           </Select>
         </FormControl>
       </Box>

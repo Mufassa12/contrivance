@@ -48,6 +48,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import SaveIcon from '@mui/icons-material/Save';
+import { todoService } from '../services/todoService';
 import CancelIcon from '@mui/icons-material/Close';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -325,34 +326,81 @@ export function SpreadsheetView() {
 
   // Todo management functions
   const loadTodos = () => {
-    // For now, use localStorage. In production, this would be an API call
-    const savedTodos = localStorage.getItem(`todos_${id}`);
-    if (savedTodos) {
-      setTodos(JSON.parse(savedTodos));
+    if (id) {
+      const savedTodos = todoService.getLocalTodos(id);
+      const mappedTodos = savedTodos.map(todo => ({
+        id: todo.id,
+        title: todo.title,
+        description: todo.description || '',
+        priority: todo.priority,
+        completed: todo.completed,
+        createdAt: todo.created_at.toString(),
+        dueDate: todo.due_date?.toString() || '',
+        supportingArtifact: todo.supporting_artifact || '',
+      }));
+      setTodos(mappedTodos);
     }
   };
 
   const loadRowTodos = (rowId: string) => {
-    // Load todos for specific row
-    const savedTodos = localStorage.getItem(`row_todos_${id}_${rowId}`);
-    if (savedTodos) {
-      setSelectedRowTodos(JSON.parse(savedTodos));
-    } else {
-      setSelectedRowTodos([]);
+    if (id) {
+      const savedTodos = todoService.getLocalTodos(id, rowId);
+      const mappedTodos = savedTodos.map(todo => ({
+        id: todo.id,
+        title: todo.title,
+        description: todo.description || '',
+        priority: todo.priority,
+        completed: todo.completed,
+        createdAt: todo.created_at.toString(),
+        dueDate: todo.due_date?.toString() || '',
+        supportingArtifact: todo.supporting_artifact || '',
+      }));
+      setSelectedRowTodos(mappedTodos);
     }
   };
 
   const saveRowTodos = (rowId: string, updatedTodos: TodoItem[]) => {
-    localStorage.setItem(`row_todos_${id}_${rowId}`, JSON.stringify(updatedTodos));
-    setSelectedRowTodos(updatedTodos);
-    // Force DataGrid re-render to update progress indicators
-    setRows(prevRows => [...prevRows]);
+    if (id) {
+      const serviceTodos = updatedTodos.map(todo => ({
+        id: todo.id,
+        title: todo.title,
+        description: todo.description,
+        priority: todo.priority as 'low' | 'medium' | 'high',
+        completed: todo.completed,
+        created_at: new Date(todo.createdAt),
+        updated_at: new Date(),
+        due_date: todo.dueDate ? new Date(todo.dueDate) : undefined,
+        supporting_artifact: todo.supportingArtifact,
+        spreadsheet_id: id,
+        row_id: rowId,
+        user_id: 'current-user',
+      }));
+      todoService.saveLocalTodos(id, serviceTodos, rowId);
+      setSelectedRowTodos(updatedTodos);
+      // Force DataGrid re-render to update progress indicators
+      setRows(prevRows => [...prevRows]);
+    }
   };
 
   const saveTodos = (updatedTodos: TodoItem[]) => {
-    // For now, use localStorage. In production, this would be an API call
-    localStorage.setItem(`todos_${id}`, JSON.stringify(updatedTodos));
-    setTodos(updatedTodos);
+    if (id) {
+      const serviceTodos = updatedTodos.map(todo => ({
+        id: todo.id,
+        title: todo.title,
+        description: todo.description,
+        priority: todo.priority as 'low' | 'medium' | 'high',
+        completed: todo.completed,
+        created_at: new Date(todo.createdAt),
+        updated_at: new Date(),
+        due_date: todo.dueDate ? new Date(todo.dueDate) : undefined,
+        supporting_artifact: todo.supportingArtifact,
+        spreadsheet_id: id,
+        row_id: undefined,
+        user_id: 'current-user',
+      }));
+      todoService.saveLocalTodos(id, serviceTodos);
+      setTodos(updatedTodos);
+    }
   };
 
   const handleAddTodo = () => {

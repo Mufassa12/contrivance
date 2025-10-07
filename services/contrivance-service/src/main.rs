@@ -2,6 +2,7 @@ mod config;
 mod websocket;
 mod repository;
 mod handlers;
+// mod todo_handlers; // Temporarily disabled until offline query cache is updated
 mod middleware;
 
 use actix_cors::Cors;
@@ -51,9 +52,13 @@ async fn main() -> std::io::Result<()> {
     // Initialize repository and handlers
     let repository = ContrivanceRepository::new(database.pool().clone());
     let contrivance_handlers = web::Data::new(ContrivanceHandlers::new(
-        repository,
+        repository.clone(),
         connection_manager_data.clone(),
     ));
+    // let todo_handlers = web::Data::new(todo_handlers::TodoHandlers::new(
+    //     repository,
+    //     connection_manager_data.clone(),
+    // )); // Temporarily disabled
 
     // Start HTTP server
     HttpServer::new(move || {
@@ -68,30 +73,83 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .app_data(contrivance_handlers.clone())
+            // .app_data(todo_handlers.clone()) // Temporarily disabled
             .app_data(web::Data::new(connection_manager.clone()))
             .app_data(jwt_service.clone())
             .app_data(web::JsonConfig::default().error_handler(|err, _req| {
-                tracing::error!("JSON deserialization error: {}", err);
+                let error_message = err.to_string();
+                tracing::error!("JSON deserialization error: {}", error_message);
                 actix_web::error::InternalError::from_response(
                     err, 
-                    HttpResponse::BadRequest().json(common::ApiResponse::<()>::error(format!("Invalid JSON: {}", err)))
+                    HttpResponse::BadRequest().json(common::ApiResponse::<()>::error(format!("Invalid JSON: {}", error_message)))
                 ).into()
             }))
             .wrap(cors)
             .wrap(Logger::default())
             .service(
-                web::resource("/api/spreadsheets")
-                    .route("", web::get().to(handlers::get_spreadsheets))
-                    .route("", web::post().to(handlers::create_spreadsheet))
-                    .route("/{id}", web::get().to(handlers::get_spreadsheet))
-                    .route("/{id}", web::put().to(handlers::update_spreadsheet))
-                    .route("/{id}", web::delete().to(handlers::delete_spreadsheet))
-                    .route("/{id}/columns", web::get().to(handlers::get_columns))
-                    .route("/{id}/rows", web::get().to(handlers::get_rows))
-                    .route("/{id}/rows", web::post().to(handlers::create_row))
-                    .route("/{spreadsheet_id}/rows/{row_id}", web::put().to(handlers::update_row))
-                    .route("/{spreadsheet_id}/rows/{row_id}", web::delete().to(handlers::delete_row))
-                    .route("/{id}/collaborators", web::get().to(handlers::get_collaborators))
+                web::scope("/api")
+                    .service(
+                        web::resource("/spreadsheets")
+                            .route(web::get().to(handlers::get_spreadsheets))
+                            .route(web::post().to(handlers::create_spreadsheet))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{id}")
+                            .route(web::get().to(handlers::get_spreadsheet))
+                            .route(web::put().to(handlers::update_spreadsheet))
+                            .route(web::delete().to(handlers::delete_spreadsheet))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{id}/columns")
+                            .route(web::get().to(handlers::get_columns))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{id}/rows")
+                            .route(web::get().to(handlers::get_rows))
+                            .route(web::post().to(handlers::create_row))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{spreadsheet_id}/rows/{row_id}")
+                            .route(web::put().to(handlers::update_row))
+                            .route(web::delete().to(handlers::delete_row))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{id}/collaborators")
+                            .route(web::get().to(handlers::get_collaborators))
+                    )
+                    // Todo routes - temporarily disabled until offline query cache is updated
+                    /*
+                    .service(
+                        web::resource("/todos")
+                            .route(web::post().to(handlers::create_todo))
+                    )
+                    .service(
+                        web::resource("/todos/{id}")
+                            .route(web::get().to(handlers::get_todo_by_id))
+                            .route(web::put().to(handlers::update_todo))
+                            .route(web::delete().to(handlers::delete_todo))
+                    )
+                    .service(
+                        web::resource("/todos/{id}/complete")
+                            .route(web::put().to(handlers::complete_todo))
+                    )
+                    .service(
+                        web::resource("/todos/{id}/uncomplete")
+                            .route(web::put().to(handlers::uncomplete_todo))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{id}/todos")
+                            .route(web::get().to(handlers::get_todos_by_spreadsheet))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{id}/todos/stats")
+                            .route(web::get().to(handlers::get_todo_stats))
+                    )
+                    .service(
+                        web::resource("/spreadsheets/{spreadsheet_id}/rows/{row_id}/todos")
+                            .route(web::get().to(handlers::get_todos_by_row))
+                    )
+                    */
             )
             .route("/ws/spreadsheet/{id}", web::get().to(websocket_handler))
             .route("/health", web::get().to(health_check))

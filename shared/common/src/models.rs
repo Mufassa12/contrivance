@@ -436,3 +436,83 @@ pub struct DependencyHealth {
     pub status: String,
     pub response_time_ms: Option<u64>,
 }
+
+/// Todo priority enumeration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "varchar", rename_all = "lowercase")]
+pub enum TodoPriority {
+    Low,
+    Medium,
+    High,
+}
+
+impl Default for TodoPriority {
+    fn default() -> Self {
+        TodoPriority::Medium
+    }
+}
+
+/// Todo model
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Todo {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub priority: TodoPriority,
+    pub completed: bool,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub due_date: Option<DateTime<Utc>>,
+    pub supporting_artifact: Option<String>,
+    pub spreadsheet_id: Uuid,
+    pub row_id: Option<Uuid>,
+    pub user_id: Uuid,
+}
+
+/// Create todo request
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct CreateTodoRequest {
+    #[validate(length(min = 1, message = "Title is required"))]
+    pub title: String,
+    pub description: Option<String>,
+    pub priority: TodoPriority,
+    pub due_date: Option<DateTime<Utc>>,
+    pub supporting_artifact: Option<String>,
+    pub spreadsheet_id: Uuid,
+    pub row_id: Option<Uuid>,
+}
+
+/// Update todo request
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct UpdateTodoRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub priority: Option<TodoPriority>,
+    pub completed: Option<bool>,
+    pub due_date: Option<DateTime<Utc>>,
+    pub supporting_artifact: Option<String>,
+}
+
+/// Todo statistics
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct TodoStats {
+    pub total: Option<i64>,
+    pub completed: Option<i64>,
+    pub pending: Option<i64>,
+    pub high_priority: Option<i64>,
+    pub medium_priority: Option<i64>,
+    pub low_priority: Option<i64>,
+}
+
+impl TodoStats {
+    pub fn new() -> Self {
+        Self {
+            total: Some(0),
+            completed: Some(0),
+            pending: Some(0),
+            high_priority: Some(0),
+            medium_priority: Some(0),
+            low_priority: Some(0),
+        }
+    }
+}
