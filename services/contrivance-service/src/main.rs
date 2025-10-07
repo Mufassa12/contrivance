@@ -88,6 +88,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .service(
                 web::scope("/api")
+                    .wrap(middleware::auth::auth_middleware())
                     .service(
                         web::resource("/spreadsheets")
                             .route(web::get().to(handlers::get_spreadsheets))

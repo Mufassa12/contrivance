@@ -21,6 +21,13 @@ async fn main() -> std::io::Result<()> {
     // Initialize HTTP client for proxying
     let http_client = common::HttpUtils::create_client(30);
     
+    // Initialize JWT service
+    let jwt_service = web::Data::new(common::JwtService::new(
+        &config.jwt_secret,
+        None,
+        None,
+    ));
+    
     // Initialize proxy service
     let proxy_service = web::Data::new(ProxyService::new(
         http_client,
@@ -43,6 +50,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .app_data(proxy_service.clone())
+            .app_data(jwt_service.clone())
             .wrap(cors)
             .wrap(Logger::default())
             .wrap(middleware::rate_limit::RateLimitMiddleware::new())
