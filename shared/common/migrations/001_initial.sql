@@ -1,0 +1,3 @@
+-- Initial schema placeholder
+-- This migration directory is used by sqlx::migrate!() macro
+-- Actual migrations should be added here for database schema management

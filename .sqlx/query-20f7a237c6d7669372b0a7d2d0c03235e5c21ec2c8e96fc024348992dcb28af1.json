@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, spreadsheet_id, name, column_type as \"column_type: common::ColumnType\", position, is_required, default_value, validation_rules, display_options, created_at, updated_at\n            FROM spreadsheet_columns \n            WHERE spreadsheet_id = $1 \n            ORDER BY position\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "spreadsheet_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "column_type: common::ColumnType",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_required",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "default_value",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "validation_rules",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "display_options",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "20f7a237c6d7669372b0a7d2d0c03235e5c21ec2c8e96fc024348992dcb28af1"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO spreadsheet_columns \n                    (id, spreadsheet_id, name, column_type, position, is_required, default_value, validation_rules, display_options, created_at, updated_at)\n                    VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, '{}'::jsonb), COALESCE($9, '{}'::jsonb), $10, $11)\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Bool",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0c914304feed77f94388e188f83bf2acf191047b7706f064b509f1dd2dd5d506"
+}

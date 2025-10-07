@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                COUNT(*) as total_users,\n                COUNT(*) FILTER (WHERE last_login > NOW() - INTERVAL '30 days') as active_users,\n                COUNT(*) FILTER (WHERE role = 'admin') as admin_users\n            FROM users \n            WHERE is_active = true\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total_users",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "active_users",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "admin_users",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "87ee86f7cca016c478d52a76735dee11734d9e601758c885c2fdeae7c267c431"
+}

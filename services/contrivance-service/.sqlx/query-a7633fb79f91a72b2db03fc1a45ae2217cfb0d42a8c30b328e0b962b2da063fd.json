@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(DISTINCT s.id) \n            FROM spreadsheets s\n            LEFT JOIN spreadsheet_collaborators sc ON s.id = sc.spreadsheet_id\n            WHERE s.owner_id = $1 \n               OR s.is_public = true \n               OR (sc.user_id = $1 AND sc.accepted_at IS NOT NULL)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a7633fb79f91a72b2db03fc1a45ae2217cfb0d42a8c30b328e0b962b2da063fd"
+}

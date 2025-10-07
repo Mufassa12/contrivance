@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE user_sessions SET is_revoked = true WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b5d506195d8a3b176ddeca2ae97929da0f707e812c42d61ac36a0e1ce97e21c6"
+}

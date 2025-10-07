@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                sc.permission_level as \"permission_level: PermissionLevel\",\n                sc.invited_at,\n                sc.accepted_at,\n                u.id as user_id,\n                u.email,\n                u.name,\n                u.role as \"role: common::UserRole\",\n                u.created_at as user_created_at,\n                u.last_login,\n                u.is_active\n            FROM spreadsheet_collaborators sc\n            JOIN users u ON sc.user_id = u.id\n            WHERE sc.spreadsheet_id = $1 AND sc.accepted_at IS NOT NULL\n            ORDER BY sc.invited_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "permission_level: PermissionLevel",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "invited_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "accepted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "role: common::UserRole",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "user_created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "last_login",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "4e46c4cf3923d353f3fd732f1672990d4ac4d9dd40f502b1e1f5515166f3a489"
+}

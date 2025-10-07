@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM user_sessions WHERE expires_at < $1 OR is_revoked = true",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "652fcff532c22ba2d4f5e11dfb93af1a7ad10efa3d2bda1416de5c2796756267"
+}

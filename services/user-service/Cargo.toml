@@ -1,0 +1,43 @@
+[package]
+name = "user-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace dependencies
+common = { path = "../../shared/common" }
+
+# Web framework
+actix-web = "4.4"
+actix-cors = "0.6"
+tokio = { version = "1.0", features = ["full"] }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Validation
+validator = "0.16"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Authentication middleware
+actix-web-httpauth = "0.8"
+
+[[bin]]
+name = "user-service"
+path = "src/main.rs"

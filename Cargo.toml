@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "services/auth-service",
+    "services/gateway-service", 
+    "services/contrivance-service",
+    "services/user-service",
+    "shared/common"
+]

@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE spreadsheet_rows SET row_data = $1, updated_at = $2, updated_by = $3 WHERE id = $4 RETURNING id, spreadsheet_id, row_data, position, created_at, updated_at, created_by, updated_by",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "spreadsheet_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "row_data",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "c8c187eb7f3c1bfe9d38098383bc69b6a78327071278a6660a8a7fb987bc0488"
+}
