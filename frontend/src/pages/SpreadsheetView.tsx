@@ -75,7 +75,7 @@ interface TodoItem {
   id: string;
   title: string;
   description: string;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'low' | 'medium' | 'high';
   completed: boolean;
   createdAt: string;
   dueDate?: string;
@@ -86,7 +86,7 @@ interface TodoItem {
 interface NewTodoForm {
   title: string;
   description: string;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'Low' | 'Medium' | 'High';  // Keep UI form as title case for display
   dueDate: string;
   supportingArtifact: string;
   assignedTo: string;
@@ -398,7 +398,7 @@ export function SpreadsheetView() {
       const createRequest = {
         title: newTodo.title,
         description: newTodo.description,
-        priority: newTodo.priority,
+        priority: newTodo.priority.toLowerCase() as 'low' | 'medium' | 'high',
         due_date: newTodo.dueDate ? new Date(newTodo.dueDate) : undefined,
         supporting_artifact: newTodo.supportingArtifact,
         spreadsheet_id: id,
@@ -454,11 +454,19 @@ export function SpreadsheetView() {
     }
   };
 
-  const getPriorityColor = (priority: 'Low' | 'Medium' | 'High'): 'default' | 'warning' | 'error' => {
+  const getPriorityColor = (priority: 'low' | 'medium' | 'high'): 'default' | 'warning' | 'error' => {
     switch (priority) {
-      case 'High': return 'error';
-      case 'Medium': return 'warning';
-      case 'Low': return 'default';
+      case 'high': return 'error';
+      case 'medium': return 'warning';
+      case 'low': return 'default';
+    }
+  };
+
+  const getPriorityDisplayText = (priority: 'low' | 'medium' | 'high'): string => {
+    switch (priority) {
+      case 'high': return 'High';
+      case 'medium': return 'Medium';
+      case 'low': return 'Low';
     }
   };
 
@@ -481,7 +489,7 @@ export function SpreadsheetView() {
       const createRequest = {
         title: newTodo.title,
         description: newTodo.description,
-        priority: newTodo.priority,
+        priority: newTodo.priority.toLowerCase() as 'low' | 'medium' | 'high',
         due_date: newTodo.dueDate ? new Date(newTodo.dueDate) : undefined,
         supporting_artifact: newTodo.supportingArtifact,
         spreadsheet_id: id,
@@ -1105,7 +1113,7 @@ export function SpreadsheetView() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                       <Chip
                         size="small"
-                        label={todo.priority}
+                        label={getPriorityDisplayText(todo.priority)}
                         color={getPriorityColor(todo.priority)}
                         variant="outlined"
                       />
@@ -1191,7 +1199,7 @@ export function SpreadsheetView() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                       <Chip
                         size="small"
-                        label={todo.priority}
+                        label={getPriorityDisplayText(todo.priority)}
                         color={getPriorityColor(todo.priority)}
                         variant="outlined"
                       />
@@ -1491,7 +1499,7 @@ export function SpreadsheetView() {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Chip
                             size="small"
-                            label={todo.priority}
+                            label={getPriorityDisplayText(todo.priority)}
                             color={getPriorityColor(todo.priority)}
                             variant="outlined"
                             sx={{ fontSize: '0.7rem' }}
@@ -1578,7 +1586,7 @@ export function SpreadsheetView() {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Chip
                             size="small"
-                            label={todo.priority}
+                            label={getPriorityDisplayText(todo.priority)}
                             color={getPriorityColor(todo.priority)}
                             variant="outlined"
                             sx={{ fontSize: '0.7rem' }}

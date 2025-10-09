@@ -68,7 +68,7 @@ interface TodoItem {
   id: string;
   title: string;
   description: string;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'low' | 'medium' | 'high';
   completed: boolean;
   createdAt: string;
   dueDate?: string;
@@ -254,9 +254,9 @@ export function Analytics() {
       }, {});
       
       const todosByPriority = [
-        { priority: 'High', count: priorityCounts.High || 0, color: '#f44336' },
-        { priority: 'Medium', count: priorityCounts.Medium || 0, color: '#ff9800' },
-        { priority: 'Low', count: priorityCounts.Low || 0, color: '#4caf50' },
+        { priority: 'High', count: priorityCounts.high || 0, color: '#f44336' },
+        { priority: 'Medium', count: priorityCounts.medium || 0, color: '#ff9800' },
+        { priority: 'Low', count: priorityCounts.low || 0, color: '#4caf50' },
       ];
       
       // Generate monthly value trend (simplified)

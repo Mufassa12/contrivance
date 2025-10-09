@@ -4,7 +4,7 @@ export interface Todo {
   id: string;
   title: string;
   description?: string;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'low' | 'medium' | 'high';
   completed: boolean;
   created_at: Date;
   updated_at: Date;
@@ -19,7 +19,7 @@ export interface Todo {
 export interface CreateTodoRequest {
   title: string;
   description?: string;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'low' | 'medium' | 'high';
   due_date?: Date;
   supporting_artifact?: string;
   spreadsheet_id: string;
@@ -30,7 +30,7 @@ export interface CreateTodoRequest {
 export interface UpdateTodoRequest {
   title?: string;
   description?: string;
-  priority?: 'Low' | 'Medium' | 'High';
+  priority?: 'low' | 'medium' | 'high';
   completed?: boolean;
   due_date?: Date;
   supporting_artifact?: string;
@@ -223,9 +223,9 @@ class TodoService {
       total: allTodos.length,
       completed: allTodos.filter(t => t.completed).length,
       pending: allTodos.filter(t => !t.completed).length,
-      high_priority: allTodos.filter(t => t.priority === 'High').length,
-      medium_priority: allTodos.filter(t => t.priority === 'Medium').length,
-      low_priority: allTodos.filter(t => t.priority === 'Low').length,
+      high_priority: allTodos.filter(t => t.priority === 'high').length,
+      medium_priority: allTodos.filter(t => t.priority === 'medium').length,
+      low_priority: allTodos.filter(t => t.priority === 'low').length,
     };
   }
 }
