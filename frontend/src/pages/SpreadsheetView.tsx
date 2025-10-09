@@ -155,6 +155,7 @@ export function SpreadsheetView() {
   });
   const [users, setUsers] = useState<User[]>([]);
   const [rowTodoStats, setRowTodoStats] = useState<Record<string, { total: number; completed: number; percentage: number }>>({});
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
 
 
 
@@ -289,6 +290,13 @@ export function SpreadsheetView() {
           created_at: spreadsheetData.data?.created_at || new Date().toISOString(),
           updated_at: spreadsheetData.data?.updated_at || new Date().toISOString()
         });
+
+        // Initialize all columns as visible by default
+        const initialVisibleColumns: Record<string, boolean> = {};
+        columnsData?.forEach(col => {
+          initialVisibleColumns[col.name] = true;
+        });
+        setVisibleColumns(initialVisibleColumns);
 
         // Convert rows to DataGrid format - dynamically map all columns
         const gridRows = (rowsData || []).map(row => {
@@ -775,27 +783,65 @@ export function SpreadsheetView() {
         <Typography variant="h6" gutterBottom>
           Column Structure
         </Typography>
+        <Typography variant="body2" color="textSecondary" gutterBottom>
+          Click columns to show/hide them in the data grid
+        </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {spreadsheet.columns
             .sort((a, b) => a.position - b.position)
-            .map((column) => (
-              <Box
-                key={column.id}
-                sx={{
-                  p: 1,
-                  border: '1px solid #e0e0e0',
-                  borderRadius: 1,
-                  minWidth: 120
-                }}
-              >
-                <Typography variant="body2" fontWeight="bold">
-                  {column.name}
-                </Typography>
-                <Typography variant="caption" color="textSecondary">
-                  {column.column_type}
-                </Typography>
-              </Box>
-            ))}
+            .map((column) => {
+              const isVisible = visibleColumns[column.name] !== false;
+              return (
+                <Box
+                  key={column.id}
+                  onClick={() => {
+                    setVisibleColumns(prev => ({
+                      ...prev,
+                      [column.name]: !isVisible
+                    }));
+                  }}
+                  sx={{
+                    p: 1,
+                    border: isVisible ? '2px solid #1976d2' : '1px solid #e0e0e0',
+                    borderRadius: 1,
+                    minWidth: 120,
+                    cursor: 'pointer',
+                    backgroundColor: isVisible ? '#e3f2fd' : '#f5f5f5',
+                    opacity: isVisible ? 1 : 0.6,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: isVisible ? '#bbdefb' : '#eeeeee',
+                      transform: 'translateY(-1px)',
+                    }
+                  }}
+                >
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="bold"
+                    color={isVisible ? 'primary' : 'textSecondary'}
+                  >
+                    {column.name}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    color={isVisible ? 'textSecondary' : 'textDisabled'}
+                  >
+                    {column.column_type}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      display: 'block', 
+                      mt: 0.5,
+                      color: isVisible ? 'success.main' : 'error.main',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {isVisible ? 'Visible' : 'Hidden'}
+                  </Typography>
+                </Box>
+              );
+            })}
         </Box>
       </Paper>
 
@@ -854,6 +900,7 @@ export function SpreadsheetView() {
               // Dynamic columns generated from spreadsheet column definitions
               ...spreadsheet.columns
                 .sort((a, b) => a.position - b.position)
+                .filter(col => visibleColumns[col.name] !== false) // Only show visible columns
                 .map((col): GridColDef => {
                   const baseColumn: GridColDef = {
                     field: col.name,

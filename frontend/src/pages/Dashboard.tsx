@@ -27,6 +27,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import HandshakeIcon from '@mui/icons-material/Handshake';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { Spreadsheet, PaginatedResponse } from '../types';
 import { spreadsheetService } from '../services/spreadsheet';
 import { useAuth } from '../hooks/useAuth';
@@ -48,6 +49,8 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [spreadsheetToDelete, setSpreadsheetToDelete] = useState<Spreadsheet | null>(null);
   
   const currentFilter = searchParams.get('filter');
 
@@ -277,6 +280,31 @@ export const Dashboard: React.FC = () => {
     setTemplateDialogOpen(true);
   };
 
+  const handleDeleteClick = (spreadsheet: Spreadsheet, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSpreadsheetToDelete(spreadsheet);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!spreadsheetToDelete) return;
+
+    try {
+      await spreadsheetService.deleteSpreadsheet(spreadsheetToDelete.id);
+      setDeleteDialogOpen(false);
+      setSpreadsheetToDelete(null);
+      // Reload spreadsheets to reflect the deletion
+      loadSpreadsheets();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to delete pipeline');
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setSpreadsheetToDelete(null);
+  };
+
   if (loading) {
     return (
       <Container>
@@ -403,6 +431,15 @@ export const Dashboard: React.FC = () => {
                       Share
                     </Button>
                     <Button 
+                      variant="outlined"
+                      size="small"
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      onClick={(e) => handleDeleteClick(spreadsheet, e)}
+                    >
+                      Delete
+                    </Button>
+                    <Button 
                       variant="contained"
                       size="small"
                       onClick={(e) => {
@@ -501,6 +538,46 @@ export const Dashboard: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setTemplateDialogOpen(false)}>
             Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleCancelDelete}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" color="error">
+            Delete Pipeline
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            Are you sure you want to delete this pipeline?
+          </Typography>
+          {spreadsheetToDelete && (
+            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+              <strong>{spreadsheetToDelete.name}</strong>
+            </Typography>
+          )}
+          <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+            This action cannot be undone. All data associated with this pipeline will be permanently deleted.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDelete}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmDelete} 
+            color="error" 
+            variant="contained"
+            startIcon={<DeleteIcon />}
+          >
+            Delete Pipeline
           </Button>
         </DialogActions>
       </Dialog>
