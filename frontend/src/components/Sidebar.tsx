@@ -96,21 +96,21 @@ export const Sidebar: React.FC = () => {
           id: 'enterprise',
           label: 'Enterprise Deals',
           icon: <BusinessIcon />,
-          path: '/dashboard',
+          path: '/dashboard?filter=enterprise',
           badge: '1',
         },
         {
           id: 'smb',
           label: 'SMB Deals',
           icon: <TrendingUp />,
-          path: '/dashboard',
+          path: '/dashboard?filter=smb',
           badge: '1',
         },
         {
           id: 'partner-leads',
           label: 'Partner Leads',
           icon: <Handshake />,
-          path: '/dashboard',
+          path: '/dashboard?filter=partner',
           badge: '0',
         },
       ],
@@ -269,7 +269,7 @@ export const Sidebar: React.FC = () => {
       {/* Header */}
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="h5" fontWeight="bold" color="primary.main">
-          Contrivance
+          contrivance
         </Typography>
         <Typography variant="body2" color="textSecondary">
           Sales Engineering Platform

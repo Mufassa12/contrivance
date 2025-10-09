@@ -304,6 +304,14 @@ export function SpreadsheetView() {
           return gridRow;
         });
         setRows(gridRows);
+
+        // Update todo stats for all rows
+        if (rowsData && rowsData.length > 0) {
+          rowsData.forEach(row => {
+            updateRowTodoStats(row.id);
+          });
+        }
+
         setLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load spreadsheet');
@@ -382,6 +390,9 @@ export function SpreadsheetView() {
         }));
         
         setSelectedRowTodos(mappedTodos);
+        
+        // Update row todo stats after loading
+        await updateRowTodoStats(rowId);
       } catch (error) {
         console.error('Error loading row todos from database:', error);
         setSelectedRowTodos([]);

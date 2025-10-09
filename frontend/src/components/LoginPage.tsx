@@ -61,7 +61,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onToggleMode }) => {
       >
         <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
-            Contrivance
+            contrivance
           </Typography>
           <Typography variant="h6" align="center" color="textSecondary" gutterBottom>
             Sign In

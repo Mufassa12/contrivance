@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -43,10 +43,13 @@ interface SETemplate {
 export const Dashboard: React.FC = () => {
   const { state: authState } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [spreadsheets, setSpreadsheets] = useState<PaginatedResponse<Spreadsheet> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  
+  const currentFilter = searchParams.get('filter');
 
   const seTemplates: SETemplate[] = [
     {
@@ -170,6 +173,47 @@ export const Dashboard: React.FC = () => {
     },
   ];
 
+  // Filter pipelines based on current filter
+  const filteredPipelines = useMemo(() => {
+    if (!spreadsheets?.data) return [];
+    
+    switch (currentFilter) {
+      case 'enterprise':
+        return spreadsheets.data.filter(sheet => 
+          sheet.name.toLowerCase().includes('enterprise') ||
+          sheet.description?.toLowerCase().includes('enterprise') ||
+          sheet.name.toLowerCase().includes('complex')
+        );
+      case 'smb':
+        return spreadsheets.data.filter(sheet => 
+          sheet.name.toLowerCase().includes('smb') ||
+          sheet.name.toLowerCase().includes('quick') ||
+          sheet.description?.toLowerCase().includes('small-medium')
+        );
+      case 'partner':
+        return spreadsheets.data.filter(sheet => 
+          sheet.name.toLowerCase().includes('partner') ||
+          sheet.description?.toLowerCase().includes('partner')
+        );
+      default:
+        return spreadsheets.data; // Show all pipelines
+    }
+  }, [spreadsheets, currentFilter]);
+
+  // Get display title based on current filter
+  const getFilterTitle = () => {
+    switch (currentFilter) {
+      case 'enterprise':
+        return 'Enterprise Sales Pipelines';
+      case 'smb':
+        return 'SMB Sales Pipelines';
+      case 'partner':
+        return 'Partner Lead Pipelines';
+      default:
+        return 'Sales Engineering Pipelines';
+    }
+  };
+
   useEffect(() => {
     loadSpreadsheets();
   }, []);
@@ -256,14 +300,24 @@ export const Dashboard: React.FC = () => {
       )}
 
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h5" gutterBottom>
-          Sales Engineering Pipelines
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" gutterBottom>
+            {getFilterTitle()}
+          </Typography>
+          {currentFilter && (
+            <Chip 
+              label={`Filtered: ${currentFilter.toUpperCase()}`} 
+              color="primary" 
+              variant="outlined"
+              onDelete={() => navigate('/dashboard')}
+            />
+          )}
+        </Box>
         
-        {!spreadsheets || spreadsheets.data.length === 0 ? (
+        {!spreadsheets || filteredPipelines.length === 0 ? (
           <Box textAlign="center" py={4}>
             <Typography variant="body1" color="textSecondary" gutterBottom>
-              No sales engineering pipelines yet. Create your first deal tracking spreadsheet!
+              {currentFilter ? `No ${currentFilter} pipelines found.` : 'No sales engineering pipelines yet. Create your first deal tracking spreadsheet!'}
             </Typography>
             <Button 
               variant="contained" 
@@ -276,7 +330,7 @@ export const Dashboard: React.FC = () => {
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {spreadsheets.data.map((spreadsheet, index) => (
+            {filteredPipelines.map((spreadsheet, index) => (
               <Paper 
                 key={spreadsheet.id} 
                 sx={{ 
