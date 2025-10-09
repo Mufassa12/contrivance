@@ -2,7 +2,7 @@ mod config;
 mod websocket;
 mod repository;
 mod handlers;
-// mod todo_handlers; // Temporarily disabled until offline query cache is updated
+mod todo_handlers;
 mod middleware;
 
 use actix_cors::Cors;
@@ -55,10 +55,10 @@ async fn main() -> std::io::Result<()> {
         repository.clone(),
         connection_manager_data.clone(),
     ));
-    // let todo_handlers = web::Data::new(todo_handlers::TodoHandlers::new(
-    //     repository,
-    //     connection_manager_data.clone(),
-    // )); // Temporarily disabled
+    let todo_handlers = web::Data::new(todo_handlers::TodoHandlers::new(
+        repository,
+        connection_manager_data.clone(),
+    ));
 
     // Start HTTP server
     HttpServer::new(move || {
@@ -73,7 +73,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .app_data(contrivance_handlers.clone())
-            // .app_data(todo_handlers.clone()) // Temporarily disabled
+            .app_data(todo_handlers.clone())
             .app_data(web::Data::new(connection_manager.clone()))
             .app_data(jwt_service.clone())
             .app_data(web::JsonConfig::default().error_handler(|err, _req| {
@@ -118,10 +118,10 @@ async fn main() -> std::io::Result<()> {
                         web::resource("/spreadsheets/{id}/collaborators")
                             .route(web::get().to(handlers::get_collaborators))
                     )
-                    // Todo routes - temporarily disabled until offline query cache is updated
-                    /*
+                    // Todo routes with owner assignment
                     .service(
                         web::resource("/todos")
+                            .route(web::get().to(handlers::get_todos))
                             .route(web::post().to(handlers::create_todo))
                     )
                     .service(
@@ -150,7 +150,10 @@ async fn main() -> std::io::Result<()> {
                         web::resource("/spreadsheets/{spreadsheet_id}/rows/{row_id}/todos")
                             .route(web::get().to(handlers::get_todos_by_row))
                     )
-                    */
+                    .service(
+                        web::resource("/users/for-assignment")
+                            .route(web::get().to(handlers::get_users_for_assignment))
+                    )
             )
             .route("/ws/spreadsheet/{id}", web::get().to(websocket_handler))
             .route("/health", web::get().to(health_check))

@@ -16,6 +16,7 @@ COPY shared/ ./shared/
 COPY services/ ./services/
 
 # Build the application
+# Re-enable SQLX_OFFLINE for cached queries
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin contrivance-service
 

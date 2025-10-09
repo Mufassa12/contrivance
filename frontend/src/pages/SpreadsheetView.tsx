@@ -48,7 +48,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import SaveIcon from '@mui/icons-material/Save';
-import { todoService } from '../services/todoService';
+import { todoService, User } from '../services/todoService';
 import CancelIcon from '@mui/icons-material/Close';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -75,19 +75,21 @@ interface TodoItem {
   id: string;
   title: string;
   description: string;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'Low' | 'Medium' | 'High';
   completed: boolean;
   createdAt: string;
   dueDate?: string;
   supportingArtifact?: string;
+  assignedTo?: string;
 }
 
 interface NewTodoForm {
   title: string;
   description: string;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'Low' | 'Medium' | 'High';
   dueDate: string;
   supportingArtifact: string;
+  assignedTo: string;
 }
 
 interface EditToolbarProps {
@@ -146,10 +148,15 @@ export function SpreadsheetView() {
   const [newTodo, setNewTodo] = useState<NewTodoForm>({
     title: '',
     description: '',
-    priority: 'medium',
+    priority: 'Medium',
     dueDate: '',
     supportingArtifact: '',
+    assignedTo: '',
   });
+  const [users, setUsers] = useState<User[]>([]);
+  const [rowTodoStats, setRowTodoStats] = useState<Record<string, { total: number; completed: number; percentage: number }>>({});
+
+
 
   // Event handlers for DataGrid
   const handleRowEditStop: GridEventListener<'rowEditStop'> = (params, event) => {
@@ -308,208 +315,269 @@ export function SpreadsheetView() {
     loadTodos();
   }, [id]);
 
+  // Load users for assignment when todo dialog opens
+  useEffect(() => {
+    if (todoDialogOpen || rowTodoDialogOpen) {
+      const loadUsers = async () => {
+        try {
+          console.log('Loading users for assignment...');
+          const usersData = await todoService.getUsersForAssignment();
+          console.log('Users loaded:', usersData, 'Array?', Array.isArray(usersData));
+          setUsers(usersData);
+        } catch (error) {
+          console.error('Failed to load users:', error);
+          // Set empty users array to allow todo creation without assignment
+          setUsers([]);
+        }
+      };
+      loadUsers();
+    }
+  }, [todoDialogOpen, rowTodoDialogOpen]);
+
   // Todo management functions
-  const loadTodos = () => {
+  const loadTodos = async () => {
     if (id) {
-      const savedTodos = todoService.getLocalTodos(id);
-      const mappedTodos = savedTodos.map(todo => ({
-        id: todo.id,
-        title: todo.title,
-        description: todo.description || '',
-        priority: todo.priority,
-        completed: todo.completed,
-        createdAt: todo.created_at.toString(),
-        dueDate: todo.due_date?.toString() || '',
-        supportingArtifact: todo.supporting_artifact || '',
-      }));
-      setTodos(mappedTodos);
+      try {
+        console.log('Loading todos from database for spreadsheet:', id);
+        const dbTodos = await todoService.getTodosBySpreadsheet(id);
+        console.log('Loaded todos from database:', dbTodos);
+        
+        const mappedTodos = dbTodos.map(todo => ({
+          id: todo.id,
+          title: todo.title || '',
+          description: todo.description || '',
+          priority: todo.priority || 'medium',
+          completed: todo.completed || false,
+          createdAt: todo.created_at ? new Date(todo.created_at).toISOString() : new Date().toISOString(),
+          dueDate: todo.due_date ? new Date(todo.due_date).toISOString().split('T')[0] : '',
+          supportingArtifact: todo.supporting_artifact || '',
+          assignedTo: todo.assigned_to || undefined,
+        }));
+        
+        setTodos(mappedTodos);
+      } catch (error) {
+        console.error('Error loading todos from database:', error);
+        setTodos([]);
+      }
     }
   };
 
-  const loadRowTodos = (rowId: string) => {
+  const loadRowTodos = async (rowId: string) => {
     if (id) {
-      const savedTodos = todoService.getLocalTodos(id, rowId);
-      const mappedTodos = savedTodos.map(todo => ({
-        id: todo.id,
-        title: todo.title,
-        description: todo.description || '',
-        priority: todo.priority,
-        completed: todo.completed,
-        createdAt: todo.created_at.toString(),
-        dueDate: todo.due_date?.toString() || '',
-        supportingArtifact: todo.supporting_artifact || '',
-      }));
-      setSelectedRowTodos(mappedTodos);
+      try {
+        console.log('Loading row todos from database for row:', rowId);
+        const dbTodos = await todoService.getTodosByRow(id, rowId);
+        console.log('Loaded row todos from database:', dbTodos);
+        
+        const mappedTodos = dbTodos.map(todo => ({
+          id: todo.id,
+          title: todo.title || '',
+          description: todo.description || '',
+          priority: todo.priority || 'medium',
+          completed: todo.completed || false,
+          createdAt: todo.created_at ? new Date(todo.created_at).toISOString() : new Date().toISOString(),
+          dueDate: todo.due_date ? new Date(todo.due_date).toISOString().split('T')[0] : '',
+          supportingArtifact: todo.supporting_artifact || '',
+          assignedTo: todo.assigned_to || undefined,
+        }));
+        
+        setSelectedRowTodos(mappedTodos);
+      } catch (error) {
+        console.error('Error loading row todos from database:', error);
+        setSelectedRowTodos([]);
+      }
     }
   };
 
-  const saveRowTodos = (rowId: string, updatedTodos: TodoItem[]) => {
-    if (id) {
-      const serviceTodos = updatedTodos.map(todo => ({
-        id: todo.id,
-        title: todo.title,
-        description: todo.description,
-        priority: todo.priority as 'low' | 'medium' | 'high',
-        completed: todo.completed,
-        created_at: new Date(todo.createdAt),
-        updated_at: new Date(),
-        due_date: todo.dueDate ? new Date(todo.dueDate) : undefined,
-        supporting_artifact: todo.supportingArtifact,
+
+
+  const handleAddTodo = async () => {
+    if (!newTodo.title.trim() || !id) return;
+
+    try {
+      const createRequest = {
+        title: newTodo.title,
+        description: newTodo.description,
+        priority: newTodo.priority,
+        due_date: newTodo.dueDate ? new Date(newTodo.dueDate) : undefined,
+        supporting_artifact: newTodo.supportingArtifact,
         spreadsheet_id: id,
-        row_id: rowId,
-        user_id: 'current-user',
-      }));
-      todoService.saveLocalTodos(id, serviceTodos, rowId);
-      setSelectedRowTodos(updatedTodos);
-      // Force DataGrid re-render to update progress indicators
-      setRows(prevRows => [...prevRows]);
+        assigned_to: newTodo.assignedTo || undefined,
+      };
+
+      console.log('Creating todo:', createRequest);
+      await todoService.createTodo(createRequest);
+      
+      // Reload todos from database
+      await loadTodos();
+
+      // Reset form
+      setNewTodo({
+        title: '',
+        description: '',
+        priority: 'Medium',
+        dueDate: '',
+        supportingArtifact: '',
+        assignedTo: '',
+      });
+      setTodoDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating todo:', error);
     }
   };
 
-  const saveTodos = (updatedTodos: TodoItem[]) => {
-    if (id) {
-      const serviceTodos = updatedTodos.map(todo => ({
-        id: todo.id,
-        title: todo.title,
-        description: todo.description,
-        priority: todo.priority as 'low' | 'medium' | 'high',
-        completed: todo.completed,
-        created_at: new Date(todo.createdAt),
-        updated_at: new Date(),
-        due_date: todo.dueDate ? new Date(todo.dueDate) : undefined,
-        supporting_artifact: todo.supportingArtifact,
-        spreadsheet_id: id,
-        row_id: undefined,
-        user_id: 'current-user',
-      }));
-      todoService.saveLocalTodos(id, serviceTodos);
-      setTodos(updatedTodos);
+  const handleToggleTodo = async (todoId: string) => {
+    try {
+      const todo = todos.find(t => t.id === todoId);
+      if (!todo) return;
+
+      if (todo.completed) {
+        await todoService.uncompleteTodo(todoId);
+      } else {
+        await todoService.completeTodo(todoId);
+      }
+      
+      // Reload todos from database
+      await loadTodos();
+    } catch (error) {
+      console.error('Error toggling todo:', error);
     }
   };
 
-  const handleAddTodo = () => {
-    if (!newTodo.title.trim()) return;
-
-    const todo: TodoItem = {
-      id: Date.now().toString(),
-      title: newTodo.title,
-      description: newTodo.description,
-      priority: newTodo.priority,
-      completed: false,
-      createdAt: new Date().toISOString(),
-      dueDate: newTodo.dueDate || undefined,
-    };
-
-    const updatedTodos = [...todos, todo];
-    saveTodos(updatedTodos);
-
-    // Reset form
-    setNewTodo({
-      title: '',
-      description: '',
-      priority: 'medium',
-      dueDate: '',
-      supportingArtifact: '',
-    });
-    setTodoDialogOpen(false);
+  const handleDeleteTodo = async (todoId: string) => {
+    try {
+      await todoService.deleteTodo(todoId);
+      // Reload todos from database
+      await loadTodos();
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+    }
   };
 
-  const handleToggleTodo = (todoId: string) => {
-    const updatedTodos = todos.map(todo =>
-      todo.id === todoId ? { ...todo, completed: !todo.completed } : todo
-    );
-    saveTodos(updatedTodos);
-  };
-
-  const handleDeleteTodo = (todoId: string) => {
-    const updatedTodos = todos.filter(todo => todo.id !== todoId);
-    saveTodos(updatedTodos);
-  };
-
-  const getPriorityColor = (priority: 'low' | 'medium' | 'high'): 'default' | 'warning' | 'error' => {
+  const getPriorityColor = (priority: 'Low' | 'Medium' | 'High'): 'default' | 'warning' | 'error' => {
     switch (priority) {
-      case 'high': return 'error';
-      case 'medium': return 'warning';
-      case 'low': return 'default';
+      case 'High': return 'error';
+      case 'Medium': return 'warning';
+      case 'Low': return 'default';
     }
   };
 
-  const handleOpenRowTodos = (rowId: string) => {
-    loadRowTodos(rowId);
+  const getUserName = (userId?: string): string => {
+    if (!userId) return '';
+    if (!Array.isArray(users)) return 'Unknown User';
+    const user = users.find(u => u.id === userId);
+    return user ? user.name : 'Unknown User';
+  };
+
+  const handleOpenRowTodos = async (rowId: string) => {
+    await loadRowTodos(rowId);
     setRowTodoDialogOpen(rowId);
   };
 
-  const handleAddRowTodo = (rowId: string) => {
-    if (!newTodo.title.trim()) return;
+  const handleAddRowTodo = async (rowId: string) => {
+    if (!newTodo.title.trim() || !id) return;
 
-    const todo: TodoItem = {
-      id: Date.now().toString(),
-      title: newTodo.title,
-      description: newTodo.description,
-      priority: newTodo.priority,
-      completed: false,
-      createdAt: new Date().toISOString(),
-      dueDate: newTodo.dueDate || undefined,
-    };
+    try {
+      const createRequest = {
+        title: newTodo.title,
+        description: newTodo.description,
+        priority: newTodo.priority,
+        due_date: newTodo.dueDate ? new Date(newTodo.dueDate) : undefined,
+        supporting_artifact: newTodo.supportingArtifact,
+        spreadsheet_id: id,
+        row_id: rowId,
+        assigned_to: newTodo.assignedTo || undefined,
+      };
 
-    const updatedTodos = [...selectedRowTodos, todo];
-    saveRowTodos(rowId, updatedTodos);
+      console.log('Creating row todo:', createRequest);
+      await todoService.createTodo(createRequest);
+      
+      // Reload row todos from database
+      await loadRowTodos(rowId);
 
-    // Reset form
-    setNewTodo({
-      title: '',
-      description: '',
-      priority: 'medium',
-      dueDate: '',
-      supportingArtifact: '',
-    });
-  };
-
-  const handleToggleRowTodo = (rowId: string, todoId: string) => {
-    const updatedTodos = selectedRowTodos.map(todo =>
-      todo.id === todoId ? { ...todo, completed: !todo.completed } : todo
-    );
-    saveRowTodos(rowId, updatedTodos);
-  };
-
-  const handleDeleteRowTodo = (rowId: string, todoId: string) => {
-    const updatedTodos = selectedRowTodos.filter(todo => todo.id !== todoId);
-    saveRowTodos(rowId, updatedTodos);
-  };
-
-  const getRowTodoCount = (rowId: string): number => {
-    const savedTodos = localStorage.getItem(`row_todos_${id}_${rowId}`);
-    if (savedTodos) {
-      const todos: TodoItem[] = JSON.parse(savedTodos);
-      return todos.filter(t => !t.completed).length;
+      // Reset form
+      setNewTodo({
+        title: '',
+        description: '',
+        priority: 'Medium',
+        dueDate: '',
+        supportingArtifact: '',
+        assignedTo: '',
+      });
+    } catch (error) {
+      console.error('Error creating row todo:', error);
     }
-    return 0;
+  };
+
+  const handleToggleRowTodo = async (rowId: string, todoId: string) => {
+    try {
+      const todo = selectedRowTodos.find(t => t.id === todoId);
+      if (!todo) return;
+
+      if (todo.completed) {
+        await todoService.uncompleteTodo(todoId);
+      } else {
+        await todoService.completeTodo(todoId);
+      }
+      
+      // Reload row todos from database
+      await loadRowTodos(rowId);
+    } catch (error) {
+      console.error('Error toggling row todo:', error);
+    }
+  };
+
+  const handleDeleteRowTodo = async (rowId: string, todoId: string) => {
+    try {
+      await todoService.deleteTodo(todoId);
+      // Reload row todos from database
+      await loadRowTodos(rowId);
+    } catch (error) {
+      console.error('Error deleting row todo:', error);
+    }
+  };
+
+  const getRowTodoCount = async (rowId: string): Promise<number> => {
+    try {
+      if (!id) return 0;
+      const dbTodos = await todoService.getTodosByRow(id, rowId);
+      return dbTodos.filter(t => !t.completed).length;
+    } catch (error) {
+      console.error('Error getting row todo count:', error);
+      return 0;
+    }
   };
 
   const getRowTodoStats = (rowId: string): { total: number; completed: number; percentage: number } => {
-    const savedTodos = localStorage.getItem(`row_todos_${id}_${rowId}`);
-    if (savedTodos) {
-      const todos: TodoItem[] = JSON.parse(savedTodos);
-      const total = todos.length;
-      const completed = todos.filter(t => t.completed).length;
+    return rowTodoStats[rowId] || { total: 0, completed: 0, percentage: 0 };
+  };
+
+  const updateRowTodoStats = async (rowId: string) => {
+    try {
+      if (!id) return;
+      const dbTodos = await todoService.getTodosByRow(id, rowId);
+      const total = dbTodos.length;
+      const completed = dbTodos.filter(t => t.completed).length;
       const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-      return { total, completed, percentage };
+      
+      setRowTodoStats(prev => ({
+        ...prev,
+        [rowId]: { total, completed, percentage }
+      }));
+    } catch (error) {
+      console.error('Error updating row todo stats:', error);
     }
-    return { total: 0, completed: 0, percentage: 0 };
   };
 
   const getTechnicalWinStatus = (rowId: string): { status: string; color: string } => {
-    const savedTodos = localStorage.getItem(`row_todos_${id}_${rowId}`);
-    if (!savedTodos) {
+    const stats = getRowTodoStats(rowId);
+    const { total, completed } = stats;
+    
+    if (total === 0) {
       return { status: 'No Todos', color: '#9e9e9e' };
     }
     
-    const todos: TodoItem[] = JSON.parse(savedTodos);
-    if (todos.length === 0) {
-      return { status: 'No Todos', color: '#9e9e9e' };
-    }
-    
-    const allCompleted = todos.every(todo => todo.completed);
+    const allCompleted = completed === total;
     return allCompleted 
       ? { status: 'Completed', color: '#4caf50' }
       : { status: 'In Progress', color: '#ff9800' };
@@ -618,17 +686,20 @@ export function SpreadsheetView() {
   return (
     <Box sx={{ p: 4 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Button 
-          onClick={() => navigate('/')} 
-          startIcon={<ArrowBackIcon />}
-          sx={{ mr: 2 }}
-        >
-          Back
-        </Button>
-        <Typography variant="h4" component="h1">
-          {spreadsheet.name}
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Button 
+            onClick={() => navigate('/')} 
+            startIcon={<ArrowBackIcon />}
+            sx={{ mr: 2 }}
+          >
+            Back
+          </Button>
+          <Typography variant="h4" component="h1">
+            {spreadsheet.name}
+          </Typography>
+        </Box>
+
       </Box>
 
       {/* Spreadsheet Info */}
@@ -878,7 +949,13 @@ export function SpreadsheetView() {
                 sortable: false,
                 disableColumnMenu: true,
                 renderCell: (params) => {
-                  const stats = getRowTodoStats(params.id.toString());
+                  try {
+                    if (!params || !params.id || params.id === null || params.id === undefined) {
+                      console.warn('Invalid params in renderCell:', params);
+                      return null;
+                    }
+                    const rowId = String(params.id);
+                    const stats = getRowTodoStats(rowId);
                   
                   return (
                     <Box 
@@ -891,11 +968,17 @@ export function SpreadsheetView() {
                         py: 0.5
                       }}
                     >
-                      <RadialProgress rowId={params.id.toString()} />
+                      <RadialProgress rowId={rowId} />
                       <Button
                         size="small"
                         startIcon={<AssignmentIcon />}
-                        onClick={() => handleOpenRowTodos(params.id.toString())}
+                        onClick={() => {
+                          try {
+                            handleOpenRowTodos(rowId);
+                          } catch (error) {
+                            console.error('Error opening row todos:', error);
+                          }
+                        }}
                         variant="outlined"
                         sx={{ 
                           minWidth: 'auto',
@@ -907,6 +990,10 @@ export function SpreadsheetView() {
                       </Button>
                     </Box>
                   );
+                  } catch (error) {
+                    console.error('Error in todos renderCell:', error, params);
+                    return <Box>Error</Box>;
+                  }
                 },
               },
               {
@@ -1027,6 +1114,15 @@ export function SpreadsheetView() {
                           Due: {new Date(todo.dueDate).toLocaleDateString()}
                         </Typography>
                       )}
+                      {todo.assignedTo && (
+                        <Chip
+                          size="small"
+                          label={`@${getUserName(todo.assignedTo)}`}
+                          color="primary"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', height: '20px' }}
+                        />
+                      )}
                       {todo.supportingArtifact && (
                         <Button
                           size="small"
@@ -1099,6 +1195,15 @@ export function SpreadsheetView() {
                         color={getPriorityColor(todo.priority)}
                         variant="outlined"
                       />
+                      {todo.assignedTo && (
+                        <Chip
+                          size="small"
+                          label={`@${getUserName(todo.assignedTo)}`}
+                          color="primary"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', height: '20px', opacity: 0.7 }}
+                        />
+                      )}
                       {todo.supportingArtifact && (
                         <Button
                           size="small"
@@ -1131,8 +1236,15 @@ export function SpreadsheetView() {
       </Paper>
 
       {/* Add Todo Dialog */}
-      <Dialog open={todoDialogOpen} onClose={() => setTodoDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Todo</DialogTitle>
+      <Dialog 
+        open={todoDialogOpen} 
+        onClose={() => setTodoDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        disablePortal
+        aria-labelledby="todo-dialog-title"
+      >
+        <DialogTitle id="todo-dialog-title">Add New Todo</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
@@ -1151,8 +1263,18 @@ export function SpreadsheetView() {
               rows={3}
             />
             <Select
-              value={newTodo.priority}
-              onChange={(e) => setNewTodo({ ...newTodo, priority: e.target.value as 'low' | 'medium' | 'high' })}
+              value={newTodo.priority.toLowerCase()}
+              onChange={(e) => {
+                const value = e.target.value as 'low' | 'medium' | 'high';
+                let priority: 'Low' | 'Medium' | 'High';
+                switch (value) {
+                  case 'low': priority = 'Low'; break;
+                  case 'medium': priority = 'Medium'; break;
+                  case 'high': priority = 'High'; break;
+                  default: priority = 'Medium';
+                }
+                setNewTodo({ ...newTodo, priority });
+              }}
               fullWidth
             >
               <MenuItem value="low">Low Priority</MenuItem>
@@ -1180,6 +1302,26 @@ export function SpreadsheetView() {
               }}
               helperText="Add links to Google Drive documents, websites, or other resources"
             />
+            <FormControl fullWidth>
+              <InputLabel>Assign To</InputLabel>
+              <Select
+                value={newTodo.assignedTo}
+                onChange={(e) => setNewTodo({ ...newTodo, assignedTo: e.target.value })}
+                label="Assign To"
+              >
+                <MenuItem value="">
+                  <em>Unassigned</em>
+                </MenuItem>
+                {(() => {
+                  console.log('Rendering users dropdown. users:', users, 'isArray:', Array.isArray(users));
+                  return Array.isArray(users) && users.map((user) => (
+                    <MenuItem key={user.id} value={user.id}>
+                      {user.name}
+                    </MenuItem>
+                  ));
+                })()}
+              </Select>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -1196,8 +1338,10 @@ export function SpreadsheetView() {
         onClose={() => setRowTodoDialogOpen(null)} 
         maxWidth="md" 
         fullWidth
+        disablePortal
+        aria-labelledby="row-todo-dialog-title"
       >
-        <DialogTitle>
+        <DialogTitle id="row-todo-dialog-title">
           Todo List for Row {rowTodoDialogOpen}
         </DialogTitle>
         <DialogContent>
@@ -1227,8 +1371,18 @@ export function SpreadsheetView() {
                 />
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <Select
-                    value={newTodo.priority}
-                    onChange={(e) => setNewTodo({ ...newTodo, priority: e.target.value as 'low' | 'medium' | 'high' })}
+                    value={newTodo.priority.toLowerCase()}
+                    onChange={(e) => {
+                      const value = e.target.value as 'low' | 'medium' | 'high';
+                      let priority: 'Low' | 'Medium' | 'High';
+                      switch (value) {
+                        case 'low': priority = 'Low'; break;
+                        case 'medium': priority = 'Medium'; break;
+                        case 'high': priority = 'High'; break;
+                        default: priority = 'Medium';
+                      }
+                      setNewTodo({ ...newTodo, priority });
+                    }}
                     size="small"
                     sx={{ minWidth: 120 }}
                   >
@@ -1267,6 +1421,40 @@ export function SpreadsheetView() {
                   }}
                   helperText="Add links to Google Drive docs, websites, or other resources"
                 />
+                <FormControl fullWidth size="small">
+                  <InputLabel>Assign To</InputLabel>
+                  <Select
+                    value={newTodo.assignedTo}
+                    onChange={(e) => setNewTodo({ ...newTodo, assignedTo: e.target.value })}
+                    label="Assign To"
+                  >
+                    <MenuItem value="">
+                      <em>Unassigned</em>
+                    </MenuItem>
+                    {Array.isArray(users) && users.map((user) => (
+                      <MenuItem key={user.id} value={user.id}>
+                        {user.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Assign To</InputLabel>
+                  <Select
+                    value={newTodo.assignedTo}
+                    onChange={(e) => setNewTodo({ ...newTodo, assignedTo: e.target.value })}
+                    label="Assign To"
+                  >
+                    <MenuItem value="">
+                      <em>Unassigned</em>
+                    </MenuItem>
+                    {Array.isArray(users) && users.map((user) => (
+                      <MenuItem key={user.id} value={user.id}>
+                        {user.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Box>
             </Paper>
 
@@ -1312,6 +1500,15 @@ export function SpreadsheetView() {
                             <Typography variant="caption" color="textSecondary">
                               Due: {new Date(todo.dueDate).toLocaleDateString()}
                             </Typography>
+                          )}
+                          {todo.assignedTo && (
+                            <Chip
+                              size="small"
+                              label={`@${getUserName(todo.assignedTo)}`}
+                              color="primary"
+                              variant="outlined"
+                              sx={{ fontSize: '0.6rem', height: '18px' }}
+                            />
                           )}
                           {todo.supportingArtifact && (
                             <Button
@@ -1386,6 +1583,15 @@ export function SpreadsheetView() {
                             variant="outlined"
                             sx={{ fontSize: '0.7rem' }}
                           />
+                          {todo.assignedTo && (
+                            <Chip
+                              size="small"
+                              label={`@${getUserName(todo.assignedTo)}`}
+                              color="primary"
+                              variant="outlined"
+                              sx={{ fontSize: '0.6rem', height: '18px', opacity: 0.7 }}
+                            />
+                          )}
                           {todo.supportingArtifact && (
                             <Button
                               size="small"

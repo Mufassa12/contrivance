@@ -1,0 +1,106 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO todos (id, title, description, priority, completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id, assigned_to)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n            RETURNING id, title, description, priority as \"priority: common::TodoPriority\", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id, assigned_to\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "priority: common::TodoPriority",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "completed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "due_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "supporting_artifact",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "spreadsheet_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "row_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "assigned_to",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Bool",
+        "Timestamptz",
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "47ef5e65b546cf8e1fbc70671c69d9a18438c7ba6902f331824650494a89a076"
+}

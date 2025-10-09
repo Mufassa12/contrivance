@@ -44,20 +44,17 @@ impl UserService {
         Ok(UserResponse::from(user))
     }
 
-    /// List users with pagination (admin only)
+    /// List users with pagination (for todo assignment)
     pub async fn list_users(
         &self,
         pagination: PaginationParams,
         requesting_user_id: Uuid,
     ) -> ContrivanceResult<PaginatedResponse<UserResponse>> {
-        // Check if requesting user is admin
-        let requesting_user = self.repository.get_user_by_id(requesting_user_id).await?
+        // Verify requesting user exists (basic authentication check)
+        let _requesting_user = self.repository.get_user_by_id(requesting_user_id).await?
             .ok_or_else(|| ContrivanceError::authentication("Requesting user not found"))?;
 
-        if requesting_user.role != common::UserRole::Admin {
-            return Err(ContrivanceError::authorization("Admin access required"));
-        }
-
+        // All authenticated users can see the user list for todo assignment purposes
         self.repository.list_users(&pagination).await
     }
 
@@ -136,7 +133,7 @@ impl UserService {
 
     /// Validate token with auth service
     pub async fn validate_token(&self, token: &str) -> ContrivanceResult<UserResponse> {
-        let url = format!("{}/auth/validate", self.auth_service_url);
+        let url = format!("{}/validate", self.auth_service_url);
         
         let response = self.http_client
             .get(&url)

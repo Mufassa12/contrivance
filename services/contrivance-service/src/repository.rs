@@ -499,8 +499,6 @@ impl ContrivanceRepository {
         Ok(count > 0)
     }
 
-    // Todo methods temporarily disabled until offline query cache is updated
-    /*
     /// Create a new todo
     pub async fn create_todo(
         &self,
@@ -513,14 +511,14 @@ impl ContrivanceRepository {
         let todo = sqlx::query_as!(
             common::Todo,
             r#"
-            INSERT INTO todos (id, title, description, priority, completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id
+            INSERT INTO todos (id, title, description, priority, completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id, assigned_to)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
             "#,
             todo_id,
             request.title,
             request.description,
-            request.priority as common::TodoPriority,
+            request.priority.clone() as common::TodoPriority,
             false, // Always start as not completed
             now,
             now,
@@ -528,7 +526,8 @@ impl ContrivanceRepository {
             request.supporting_artifact,
             request.spreadsheet_id,
             request.row_id,
-            user_id
+            user_id,
+            request.assigned_to
         )
         .fetch_one(&self.pool)
         .await?;
@@ -536,7 +535,28 @@ impl ContrivanceRepository {
         Ok(todo)
     }
 
-    /// Get todos for a spreadsheet (pipeline-level)
+    /// Get all todos for a user (assigned to or created by user)
+    pub async fn get_todos_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> ContrivanceResult<Vec<common::Todo>> {
+        let todos = sqlx::query_as!(
+            common::Todo,
+            r#"
+            SELECT id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
+            FROM todos
+            WHERE user_id = $1 OR assigned_to = $1
+            ORDER BY created_at DESC
+            "#,
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(todos)
+    }
+
+    /// Get todos for a spreadsheet (pipeline-level) - show todos assigned to or created by user
     pub async fn get_todos_by_spreadsheet(
         &self,
         spreadsheet_id: Uuid,
@@ -545,9 +565,9 @@ impl ContrivanceRepository {
         let todos = sqlx::query_as!(
             common::Todo,
             r#"
-            SELECT id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id
+            SELECT id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
             FROM todos
-            WHERE spreadsheet_id = $1 AND user_id = $2 AND row_id IS NULL
+            WHERE spreadsheet_id = $1 AND (user_id = $2 OR assigned_to = $2) AND row_id IS NULL
             ORDER BY created_at DESC
             "#,
             spreadsheet_id,
@@ -559,7 +579,7 @@ impl ContrivanceRepository {
         Ok(todos)
     }
 
-    /// Get todos for a specific row
+    /// Get todos for a specific row - show todos assigned to or created by user
     pub async fn get_todos_by_row(
         &self,
         spreadsheet_id: Uuid,
@@ -569,9 +589,9 @@ impl ContrivanceRepository {
         let todos = sqlx::query_as!(
             common::Todo,
             r#"
-            SELECT id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id
+            SELECT id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
             FROM todos
-            WHERE spreadsheet_id = $1 AND row_id = $2 AND user_id = $3
+            WHERE spreadsheet_id = $1 AND row_id = $2 AND (user_id = $3 OR assigned_to = $3)
             ORDER BY created_at DESC
             "#,
             spreadsheet_id,
@@ -584,7 +604,7 @@ impl ContrivanceRepository {
         Ok(todos)
     }
 
-    /// Get todo by ID
+    /// Get todo by ID - allow access if user created or is assigned to the todo
     pub async fn get_todo_by_id(
         &self,
         todo_id: Uuid,
@@ -593,9 +613,9 @@ impl ContrivanceRepository {
         let todo = sqlx::query_as!(
             common::Todo,
             r#"
-            SELECT id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id
+            SELECT id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
             FROM todos
-            WHERE id = $1 AND user_id = $2
+            WHERE id = $1 AND (user_id = $2 OR assigned_to = $2)
             "#,
             todo_id,
             user_id
@@ -606,14 +626,34 @@ impl ContrivanceRepository {
         Ok(todo)
     }
 
-    /// Update a todo - simplified to handle basic updates
+    /// Update a todo - allow updates if user created or is assigned to the todo
     pub async fn update_todo(
         &self,
         todo_id: Uuid,
         request: &common::UpdateTodoRequest,
         user_id: Uuid,
     ) -> ContrivanceResult<Option<common::Todo>> {
-        // For simplicity, handle completion status updates separately
+        // Handle assignment updates
+        if let Some(assigned_to) = request.assigned_to {
+            let todo = sqlx::query_as!(
+                common::Todo,
+                r#"
+                UPDATE todos
+                SET assigned_to = $3, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1 AND (user_id = $2 OR assigned_to = $2)
+                RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
+                "#,
+                todo_id,
+                user_id,
+                assigned_to
+            )
+            .fetch_optional(&self.pool)
+            .await?;
+            
+            return Ok(todo);
+        }
+
+        // Handle completion status updates
         if let Some(completed) = request.completed {
             return self.update_todo_completion(todo_id, completed, user_id).await;
         }
@@ -625,8 +665,8 @@ impl ContrivanceRepository {
                 r#"
                 UPDATE todos
                 SET title = $3, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1 AND user_id = $2
-                RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id
+                WHERE id = $1 AND (user_id = $2 OR assigned_to = $2)
+                RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
                 "#,
                 todo_id,
                 user_id,
@@ -645,12 +685,12 @@ impl ContrivanceRepository {
                 r#"
                 UPDATE todos
                 SET priority = $3, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1 AND user_id = $2
-                RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id
+                WHERE id = $1 AND (user_id = $2 OR assigned_to = $2)
+                RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
                 "#,
                 todo_id,
                 user_id,
-                priority as common::TodoPriority
+                priority.clone() as common::TodoPriority
             )
             .fetch_optional(&self.pool)
             .await?;
@@ -673,8 +713,8 @@ impl ContrivanceRepository {
             r#"
             UPDATE todos
             SET completed = $3, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1 AND user_id = $2
-            RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id
+            WHERE id = $1 AND (user_id = $2 OR assigned_to = $2)
+            RETURNING id, title, description, priority as "priority: common::TodoPriority", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as "row_id?", user_id, assigned_to as "assigned_to?"
             "#,
             todo_id,
             user_id,
@@ -686,7 +726,7 @@ impl ContrivanceRepository {
         Ok(todo)
     }
 
-    /// Delete a todo
+    /// Delete a todo - allow deletion if user created the todo
     pub async fn delete_todo(
         &self,
         todo_id: Uuid,
@@ -703,7 +743,7 @@ impl ContrivanceRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    /// Get todo statistics for a spreadsheet
+    /// Get todo statistics for a spreadsheet - include todos assigned to user
     pub async fn get_todo_stats(
         &self,
         spreadsheet_id: Uuid,
@@ -720,7 +760,7 @@ impl ContrivanceRepository {
                 COUNT(CASE WHEN priority = 'medium' THEN 1 END) as medium_priority,
                 COUNT(CASE WHEN priority = 'low' THEN 1 END) as low_priority
             FROM todos 
-            WHERE spreadsheet_id = $1 AND user_id = $2
+            WHERE spreadsheet_id = $1 AND (user_id = $2 OR assigned_to = $2)
             "#,
             spreadsheet_id,
             user_id
@@ -730,5 +770,21 @@ impl ContrivanceRepository {
 
         Ok(stats)
     }
-    */
+
+    /// Get all users for assignment dropdown
+    pub async fn get_users_for_assignment(&self) -> ContrivanceResult<Vec<common::User>> {
+        let users = sqlx::query_as!(
+            common::User,
+            r#"
+            SELECT id, email, password_hash, name, role as "role: common::UserRole", created_at, updated_at, is_active, last_login
+            FROM users
+            WHERE is_active = true
+            ORDER BY name ASC
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(users)
+    }
 }

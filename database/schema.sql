@@ -214,6 +214,9 @@ CREATE TABLE todos (
     -- Owner of the todo
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
+    -- User assigned to this todo (can be different from owner)
+    assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+    
     -- Either spreadsheet_id or row_id must be provided (but row_id can be null for pipeline todos)
     CONSTRAINT todos_has_context CHECK (spreadsheet_id IS NOT NULL)
 );

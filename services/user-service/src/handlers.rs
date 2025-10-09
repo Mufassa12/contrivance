@@ -151,6 +151,26 @@ pub async fn delete_user(
     }
 }
 
+/// Simple ping endpoint for testing
+pub async fn ping() -> Result<HttpResponse> {
+    Ok(HttpResponse::Ok().json(serde_json::json!({"status": "ok", "service": "user-service"})))
+}
+
+/// Test list users endpoint without authentication
+pub async fn test_list_users(
+    query: web::Query<PaginationParams>,
+) -> Result<HttpResponse> {
+    let params = query.into_inner();
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "status": "ok",
+        "message": "test endpoint working",
+        "params": {
+            "page": params.page,
+            "limit": params.limit
+        }
+    })))
+}
+
 /// Health check endpoint
 pub async fn health_check(user_service: web::Data<UserService>) -> Result<HttpResponse> {
     match user_service.health_check().await {

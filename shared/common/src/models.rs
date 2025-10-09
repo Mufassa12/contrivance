@@ -440,6 +440,7 @@ pub struct DependencyHealth {
 /// Todo priority enumeration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "varchar", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum TodoPriority {
     Low,
     Medium,
@@ -467,6 +468,7 @@ pub struct Todo {
     pub spreadsheet_id: Uuid,
     pub row_id: Option<Uuid>,
     pub user_id: Uuid,
+    pub assigned_to: Option<Uuid>,
 }
 
 /// Create todo request
@@ -480,6 +482,7 @@ pub struct CreateTodoRequest {
     pub supporting_artifact: Option<String>,
     pub spreadsheet_id: Uuid,
     pub row_id: Option<Uuid>,
+    pub assigned_to: Option<Uuid>,
 }
 
 /// Update todo request
@@ -491,6 +494,7 @@ pub struct UpdateTodoRequest {
     pub completed: Option<bool>,
     pub due_date: Option<DateTime<Utc>>,
     pub supporting_artifact: Option<String>,
+    pub assigned_to: Option<Uuid>,
 }
 
 /// Todo statistics

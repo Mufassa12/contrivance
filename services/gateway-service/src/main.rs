@@ -90,6 +90,22 @@ async fn main() -> std::io::Result<()> {
                     .route("/{spreadsheet_id}/rows/{row_id}", web::put().to(proxy::contrivance_proxy))
                     .route("/{spreadsheet_id}/rows/{row_id}", web::delete().to(proxy::contrivance_proxy))
                     .route("/{id}/collaborators", web::get().to(proxy::contrivance_proxy))
+                    // Todo routes for spreadsheets
+                    .route("/{id}/todos", web::get().to(proxy::contrivance_proxy))
+                    .route("/{id}/todos/stats", web::get().to(proxy::contrivance_proxy))
+                    .route("/{spreadsheet_id}/rows/{row_id}/todos", web::get().to(proxy::contrivance_proxy))
+            )
+            // Todo service routes
+            .service(
+                web::scope("/api/todos")
+                    .wrap(middleware::auth::auth_middleware())
+                    .route("", web::get().to(proxy::contrivance_proxy))   // Get all todos for user
+                    .route("", web::post().to(proxy::contrivance_proxy))
+                    .route("/{id}", web::get().to(proxy::contrivance_proxy))
+                    .route("/{id}", web::put().to(proxy::contrivance_proxy))
+                    .route("/{id}", web::delete().to(proxy::contrivance_proxy))
+                    .route("/{id}/complete", web::put().to(proxy::contrivance_proxy))
+                    .route("/{id}/uncomplete", web::put().to(proxy::contrivance_proxy))
             )
             // WebSocket proxy - direct connection to contrivance service
             .route("/ws/spreadsheet/{id}", web::get().to(proxy::websocket_proxy))

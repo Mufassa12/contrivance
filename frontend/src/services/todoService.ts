@@ -1,12 +1,10 @@
-import axios from 'axios';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4080/api';
+import { apiService } from './api';
 
 export interface Todo {
   id: string;
   title: string;
   description?: string;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'Low' | 'Medium' | 'High';
   completed: boolean;
   created_at: Date;
   updated_at: Date;
@@ -15,25 +13,28 @@ export interface Todo {
   spreadsheet_id: string;
   row_id?: string;
   user_id: string;
+  assigned_to?: string;
 }
 
 export interface CreateTodoRequest {
   title: string;
   description?: string;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'Low' | 'Medium' | 'High';
   due_date?: Date;
   supporting_artifact?: string;
   spreadsheet_id: string;
   row_id?: string;
+  assigned_to?: string;
 }
 
 export interface UpdateTodoRequest {
   title?: string;
   description?: string;
-  priority?: 'low' | 'medium' | 'high';
+  priority?: 'Low' | 'Medium' | 'High';
   completed?: boolean;
   due_date?: Date;
   supporting_artifact?: string;
+  assigned_to?: string;
 }
 
 export interface TodoStats {
@@ -45,99 +46,78 @@ export interface TodoStats {
   low_priority: number;
 }
 
-class TodoService {
-  private getAuthHeaders() {
-    const token = localStorage.getItem('token');
-    return {
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
-      }
-    };
-  }
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
+class TodoService {
   // Create a new todo
   async createTodo(request: CreateTodoRequest): Promise<Todo> {
-    const response = await axios.post(
-      `${API_BASE_URL}/todos`,
-      request,
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.post<Todo>('/api/todos', request);
   }
 
   // Get todos for a spreadsheet (pipeline-level)
   async getTodosBySpreadsheet(spreadsheetId: string): Promise<Todo[]> {
-    const response = await axios.get(
-      `${API_BASE_URL}/spreadsheets/${spreadsheetId}/todos`,
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.get<Todo[]>(`/api/spreadsheets/${spreadsheetId}/todos`);
   }
 
   // Get todos for a specific row
   async getTodosByRow(spreadsheetId: string, rowId: string): Promise<Todo[]> {
-    const response = await axios.get(
-      `${API_BASE_URL}/spreadsheets/${spreadsheetId}/rows/${rowId}/todos`,
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.get<Todo[]>(`/api/spreadsheets/${spreadsheetId}/rows/${rowId}/todos`);
   }
 
   // Get todo statistics for a spreadsheet
   async getTodoStats(spreadsheetId: string): Promise<TodoStats> {
-    const response = await axios.get(
-      `${API_BASE_URL}/spreadsheets/${spreadsheetId}/todos/stats`,
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.get<TodoStats>(`/api/spreadsheets/${spreadsheetId}/todos/stats`);
   }
 
   // Get a specific todo by ID
   async getTodoById(todoId: string): Promise<Todo> {
-    const response = await axios.get(
-      `${API_BASE_URL}/todos/${todoId}`,
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.get<Todo>(`/api/todos/${todoId}`);
   }
 
   // Update a todo
   async updateTodo(todoId: string, request: UpdateTodoRequest): Promise<Todo> {
-    const response = await axios.put(
-      `${API_BASE_URL}/todos/${todoId}`,
-      request,
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.put<Todo>(`/api/todos/${todoId}`, request);
   }
 
   // Delete a todo
   async deleteTodo(todoId: string): Promise<void> {
-    await axios.delete(
-      `${API_BASE_URL}/todos/${todoId}`,
-      this.getAuthHeaders()
-    );
+    await apiService.delete<void>(`/api/todos/${todoId}`);
   }
 
   // Mark a todo as completed
   async completeTodo(todoId: string): Promise<Todo> {
-    const response = await axios.put(
-      `${API_BASE_URL}/todos/${todoId}/complete`,
-      {},
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.put<Todo>(`/api/todos/${todoId}/complete`, {});
   }
 
   // Mark a todo as not completed
   async uncompleteTodo(todoId: string): Promise<Todo> {
-    const response = await axios.put(
-      `${API_BASE_URL}/todos/${todoId}/uncomplete`,
-      {},
-      this.getAuthHeaders()
-    );
-    return response.data.data;
+    return await apiService.put<Todo>(`/api/todos/${todoId}/uncomplete`, {});
+  }
+
+  // Get users for assignment dropdown
+  async getUsersForAssignment(): Promise<User[]> {
+    try {
+      const paginatedResponse = await apiService.get<{
+        data: User[];
+        total: number;
+        page: number;
+        limit: number;
+        total_pages: number;
+        has_next: boolean;
+        has_prev: boolean;
+      }>('/api/users?page=1&limit=100');
+      
+      // Ensure we have a valid array
+      return Array.isArray(paginatedResponse?.data) ? paginatedResponse.data : [];
+    } catch (error) {
+      console.error('Failed to fetch users for assignment:', error);
+      return [];
+    }
   }
 
   // Fallback methods using localStorage for now (until backend is ready)
@@ -183,6 +163,7 @@ class TodoService {
       spreadsheet_id: request.spreadsheet_id,
       row_id: request.row_id,
       user_id: 'current-user', // This should come from auth context
+      assigned_to: request.assigned_to,
     };
 
     const existingTodos = this.getLocalTodos(request.spreadsheet_id, request.row_id);
@@ -242,9 +223,9 @@ class TodoService {
       total: allTodos.length,
       completed: allTodos.filter(t => t.completed).length,
       pending: allTodos.filter(t => !t.completed).length,
-      high_priority: allTodos.filter(t => t.priority === 'high').length,
-      medium_priority: allTodos.filter(t => t.priority === 'medium').length,
-      low_priority: allTodos.filter(t => t.priority === 'low').length,
+      high_priority: allTodos.filter(t => t.priority === 'High').length,
+      medium_priority: allTodos.filter(t => t.priority === 'Medium').length,
+      low_priority: allTodos.filter(t => t.priority === 'Low').length,
     };
   }
 }

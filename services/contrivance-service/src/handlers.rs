@@ -9,7 +9,7 @@ use common::WebSocketMessage;
 use common::{
     CreateSpreadsheetRequest, UpdateSpreadsheetRequest,
     CreateRowRequest, UpdateRowRequest, PaginationParams, ApiResponse,
-    ContrivanceError,
+    ContrivanceError, CreateTodoRequest, UpdateTodoRequest,
 };
 
 pub struct ContrivanceHandlers {
@@ -419,14 +419,20 @@ pub async fn get_spreadsheets(
     data.list_spreadsheets(req, query).await
 }
 
-// Todo handler functions - temporarily disabled until offline query cache is updated
-/*
+// Todo handler functions with owner assignment support
 pub async fn create_todo(
     req: HttpRequest,
     payload: web::Json<CreateTodoRequest>,
     data: web::Data<crate::todo_handlers::TodoHandlers>,
 ) -> Result<HttpResponse, ContrivanceError> {
     data.create_todo(req, payload).await
+}
+
+pub async fn get_todos(
+    req: HttpRequest,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.get_todos(req).await
 }
 
 pub async fn get_todos_by_spreadsheet(
@@ -475,7 +481,7 @@ pub async fn delete_todo(
     path: web::Path<Uuid>,
     data: web::Data<crate::todo_handlers::TodoHandlers>,
 ) -> Result<HttpResponse, ContrivanceError> {
-    data.delete_todo(req, path, payload).await
+    data.delete_todo(req, path).await
 }
 
 pub async fn complete_todo(
@@ -493,4 +499,10 @@ pub async fn uncomplete_todo(
 ) -> Result<HttpResponse, ContrivanceError> {
     data.uncomplete_todo(req, path).await
 }
-*/
+
+pub async fn get_users_for_assignment(
+    req: HttpRequest,
+    data: web::Data<crate::todo_handlers::TodoHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.get_users_for_assignment(req).await
+}

@@ -38,6 +38,20 @@ impl TodoHandlers {
         Ok(HttpResponse::Created().json(ApiResponse::success(todo)))
     }
 
+    /// Get all todos for the authenticated user
+    pub async fn get_todos(
+        &self,
+        req: HttpRequest,
+    ) -> Result<HttpResponse, ContrivanceError> {
+        let user = get_user_from_request(&req)?;
+        
+        let todos = self.repository
+            .get_todos_for_user(user.id)
+            .await?;
+
+        Ok(HttpResponse::Ok().json(ApiResponse::success(todos)))
+    }
+
     /// Get todos for a spreadsheet (pipeline-level)
     pub async fn get_todos_by_spreadsheet(
         &self,
@@ -196,5 +210,27 @@ impl TodoHandlers {
             Some(todo) => Ok(HttpResponse::Ok().json(ApiResponse::success(todo))),
             None => Err(ContrivanceError::not_found("Todo not found")),
         }
+    }
+
+    /// Get users for assignment dropdown
+    pub async fn get_users_for_assignment(
+        &self,
+        req: HttpRequest,
+    ) -> Result<HttpResponse, ContrivanceError> {
+        let _user = get_user_from_request(&req)?; // Ensure user is authenticated
+
+        let users = self.repository
+            .get_users_for_assignment()
+            .await?;
+
+        // Return users without password hash for security
+        let safe_users: Vec<_> = users.into_iter().map(|user| serde_json::json!({
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role
+        })).collect();
+
+        Ok(HttpResponse::Ok().json(ApiResponse::success(safe_users)))
     }
 }

@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                COUNT(*) as total,\n                COUNT(CASE WHEN completed = true THEN 1 END) as completed,\n                COUNT(CASE WHEN completed = false THEN 1 END) as pending,\n                COUNT(CASE WHEN priority = 'high' THEN 1 END) as high_priority,\n                COUNT(CASE WHEN priority = 'medium' THEN 1 END) as medium_priority,\n                COUNT(CASE WHEN priority = 'low' THEN 1 END) as low_priority\n            FROM todos \n            WHERE spreadsheet_id = $1 AND (user_id = $2 OR assigned_to = $2)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "completed",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "pending",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "high_priority",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "medium_priority",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "low_priority",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "df06ce10e7611cebcc25fe385c7583ad1d99664e9619703af4f89c8a8b2f7bc3"
+}

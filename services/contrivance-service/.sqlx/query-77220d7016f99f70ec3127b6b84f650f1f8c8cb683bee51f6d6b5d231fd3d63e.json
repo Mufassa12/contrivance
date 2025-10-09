@@ -1,0 +1,96 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE todos\n                SET title = $3, updated_at = CURRENT_TIMESTAMP\n                WHERE id = $1 AND (user_id = $2 OR assigned_to = $2)\n                RETURNING id, title, description, priority as \"priority: common::TodoPriority\", completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id as \"row_id?\", user_id, assigned_to as \"assigned_to?\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "priority: common::TodoPriority",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "completed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "due_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "supporting_artifact",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "spreadsheet_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "row_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "assigned_to?",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "77220d7016f99f70ec3127b6b84f650f1f8c8cb683bee51f6d6b5d231fd3d63e"
+}
