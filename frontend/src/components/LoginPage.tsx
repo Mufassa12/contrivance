@@ -60,6 +60,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onToggleMode }) => {
         }}
       >
         <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <img 
+              src="/images/contrivance-mascot.svg" 
+              alt="Contrivance Mascot" 
+              style={{ width: '80px', height: '80px' }}
+            />
+          </Box>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
             contrivance
           </Typography>

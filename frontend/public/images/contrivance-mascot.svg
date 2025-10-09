@@ -1,0 +1,70 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Firefox-like mascot body -->
+  <defs>
+    <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#357ABD;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="chestGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B6B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E55555;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="tailGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD93D;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FF6B6B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4A90E2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Body -->
+  <ellipse cx="100" cy="130" rx="45" ry="50" fill="url(#bodyGradient)" stroke="#2C3E50" stroke-width="3"/>
+  
+  <!-- Chest/belly -->
+  <ellipse cx="100" cy="135" rx="25" ry="30" fill="url(#chestGradient)"/>
+  
+  <!-- Head -->
+  <circle cx="100" cy="80" r="35" fill="url(#chestGradient)" stroke="#2C3E50" stroke-width="3"/>
+  
+  <!-- Head markings -->
+  <path d="M 85 65 Q 100 50 115 65 Q 100 75 85 65" fill="url(#tailGradient)"/>
+  
+  <!-- Ears -->
+  <ellipse cx="85" cy="60" rx="8" ry="15" fill="#2C3E50" stroke="#2C3E50" stroke-width="2"/>
+  <ellipse cx="115" cy="60" rx="8" ry="15" fill="#2C3E50" stroke="#2C3E50" stroke-width="2"/>
+  <ellipse cx="85" cy="62" rx="4" ry="8" fill="url(#bodyGradient)"/>
+  <ellipse cx="115" cy="62" rx="4" ry="8" fill="url(#bodyGradient)"/>
+  
+  <!-- Eyes -->
+  <circle cx="90" cy="75" r="8" fill="white"/>
+  <circle cx="110" cy="75" r="8" fill="white"/>
+  <circle cx="90" cy="75" r="5" fill="#2C3E50"/>
+  <circle cx="110" cy="75" r="5" fill="#2C3E50"/>
+  <circle cx="91" cy="73" r="2" fill="white"/>
+  <circle cx="111" cy="73" r="2" fill="white"/>
+  
+  <!-- Nose -->
+  <ellipse cx="100" cy="85" rx="3" ry="2" fill="#2C3E50"/>
+  
+  <!-- Arms -->
+  <ellipse cx="70" cy="120" rx="12" ry="25" fill="url(#chestGradient)" stroke="#2C3E50" stroke-width="2"/>
+  <ellipse cx="130" cy="120" rx="12" ry="25" fill="url(#chestGradient)" stroke="#2C3E50" stroke-width="2"/>
+  
+  <!-- Paws -->
+  <circle cx="65" cy="140" r="8" fill="url(#bodyGradient)" stroke="#2C3E50" stroke-width="2"/>
+  <circle cx="135" cy="140" r="8" fill="url(#bodyGradient)" stroke="#2C3E50" stroke-width="2"/>
+  
+  <!-- Legs -->
+  <ellipse cx="85" cy="165" rx="10" ry="20" fill="url(#bodyGradient)" stroke="#2C3E50" stroke-width="2"/>
+  <ellipse cx="115" cy="165" rx="10" ry="20" fill="url(#bodyGradient)" stroke="#2C3E50" stroke-width="2"/>
+  
+  <!-- Feet -->
+  <ellipse cx="85" cy="185" rx="12" ry="6" fill="#2C3E50"/>
+  <ellipse cx="115" cy="185" rx="12" ry="6" fill="#2C3E50"/>
+  
+  <!-- Tail -->
+  <path d="M 145 130 Q 165 115 175 95 Q 180 85 175 75 Q 170 70 165 75 Q 155 85 150 100 Q 145 115 145 130" 
+        fill="url(#tailGradient)" stroke="#2C3E50" stroke-width="3"/>
+  
+  <!-- Tail flame effect -->
+  <path d="M 170 80 Q 175 70 180 75 Q 185 80 180 85 Q 175 90 170 85" fill="#FFD93D"/>
+</svg>
