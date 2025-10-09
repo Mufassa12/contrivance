@@ -579,10 +579,46 @@ export function SpreadsheetView() {
       const completed = dbTodos.filter(t => t.completed).length;
       const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
       
+      console.log(`Row ${rowId} stats: ${completed}/${total} (${percentage}%) completed`);
+      console.log('Todos:', dbTodos.map(t => ({ id: t.id, title: t.title, completed: t.completed })));
+      
       setRowTodoStats(prev => ({
         ...prev,
         [rowId]: { total, completed, percentage }
       }));
+
+      // Update row status based on todo completion
+      if (total > 0) {
+        const allCompleted = completed === total;
+        const technicalWinStatus = allCompleted ? 'Technical Win Completed' : 'In Progress';
+        
+        try {
+          // Find the current row to get its existing data
+          const currentRow = rows.find(row => row.id === rowId);
+          if (currentRow) {
+            // Update the row with the new status
+            const updatedRowData = {
+              ...currentRow,
+              'Technical Win': technicalWinStatus,
+              'Status': technicalWinStatus
+            };
+            
+            console.log(`Updating row ${rowId} Technical Win status to: ${technicalWinStatus}`);
+            await spreadsheetService.updateRow(id, rowId, { row_data: updatedRowData });
+            
+            // Update local state
+            setRows(prevRows => 
+              prevRows.map(row => 
+                row.id === rowId 
+                  ? { ...row, 'Technical Win': technicalWinStatus, 'Status': technicalWinStatus }
+                  : row
+              )
+            );
+          }
+        } catch (updateError) {
+          console.error('Error updating row Technical Win status:', updateError);
+        }
+      }
     } catch (error) {
       console.error('Error updating row todo stats:', error);
     }
@@ -961,6 +997,38 @@ export function SpreadsheetView() {
                       return baseColumn;
                   }
                 }),
+              {
+                field: 'technical_win',
+                headerName: 'Technical Win',
+                width: 140,
+                sortable: false,
+                disableColumnMenu: true,
+                renderCell: (params) => {
+                  const rowId = String(params.id);
+                  const statusResult = getTechnicalWinStatus(rowId);
+                  
+                  return (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {statusResult.status === 'Completed' ? (
+                        <Chip
+                          label="Technical Win"
+                          color="success"
+                          size="small"
+                          variant="filled"
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                      ) : (
+                        <Chip
+                          label="In Progress"
+                          color="default"
+                          size="small"
+                          variant="outlined"
+                        />
+                      )}
+                    </Box>
+                  );
+                },
+              },
               {
                 field: 'todos',
                 headerName: 'Todos',
