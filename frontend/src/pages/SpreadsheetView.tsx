@@ -28,6 +28,8 @@ import {
   Select,
   MenuItem,
   CircularProgress as MuiCircularProgress,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   DataGrid,
@@ -156,8 +158,63 @@ export function SpreadsheetView() {
   const [users, setUsers] = useState<User[]>([]);
   const [rowTodoStats, setRowTodoStats] = useState<Record<string, { total: number; completed: number; percentage: number }>>({});
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
+  
+  // Quarterly filtering state
+  const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
+  const [filteredRows, setFilteredRows] = useState<GridRowsProp>([]);
 
+  // Function to determine quarter from date
+  const getQuarter = (dateString: string): string => {
+    const date = new Date(dateString);
+    const month = date.getMonth() + 1; // getMonth() returns 0-11, we want 1-12
+    if (month >= 1 && month <= 3) return 'Q1';
+    if (month >= 4 && month <= 6) return 'Q2';  
+    if (month >= 7 && month <= 9) return 'Q3';
+    return 'Q4';
+  };
 
+  // Function to filter rows by quarter
+  const filterRowsByQuarter = (rows: GridRowsProp, quarter: string): GridRowsProp => {
+    if (quarter === 'all') return rows;
+    
+    return rows.filter(row => {
+      // Check if there's a date field in the row data
+      // Look for common date field names or use created_at from the row metadata
+      const rowData = row as any;
+      
+      // First check if there's a date-related column in the row data
+      let dateToCheck: string | null = null;
+      
+      // Look for common date field names
+      const dateFields = ['date', 'created_date', 'deal_date', 'close_date', 'created_at'];
+      for (const field of dateFields) {
+        if (rowData[field]) {
+          dateToCheck = rowData[field];
+          break;
+        }
+      }
+      
+      // If no date field found in row data, we'll need to use metadata or default to current quarter
+      if (!dateToCheck) {
+        // For now, default to current date so all rows show up
+        dateToCheck = new Date().toISOString();
+      }
+      
+      const rowQuarter = getQuarter(dateToCheck);
+      return rowQuarter === quarter;
+    });
+  };
+
+  // Handle quarter tab change
+  const handleQuarterChange = (event: React.SyntheticEvent, newValue: string) => {
+    setSelectedQuarter(newValue);
+  };
+
+  // Update filtered rows whenever rows or selectedQuarter changes
+  useEffect(() => {
+    const filtered = filterRowsByQuarter(rows, selectedQuarter);
+    setFilteredRows(filtered);
+  }, [rows, selectedQuarter]);
 
   // Event handlers for DataGrid
   const handleRowEditStop: GridEventListener<'rowEditStop'> = (params, event) => {
@@ -845,11 +902,30 @@ export function SpreadsheetView() {
         </Box>
       </Paper>
 
+      {/* Quarterly Tabs */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Filter by Quarter
+        </Typography>
+        <Tabs 
+          value={selectedQuarter} 
+          onChange={handleQuarterChange}
+          aria-label="quarterly filter tabs"
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="All Data" value="all" />
+          <Tab label="Q1 (Jan-Mar)" value="Q1" />
+          <Tab label="Q2 (Apr-Jun)" value="Q2" />
+          <Tab label="Q3 (Jul-Sep)" value="Q3" />
+          <Tab label="Q4 (Oct-Dec)" value="Q4" />
+        </Tabs>
+      </Paper>
+
       {/* DataGrid for spreadsheet data */}
       <Paper sx={{ p: 2, height: 500 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
-            Spreadsheet Data
+            Spreadsheet Data {selectedQuarter !== 'all' && `(${selectedQuarter})`}
           </Typography>
           <Button 
             variant="contained" 
@@ -895,7 +971,7 @@ export function SpreadsheetView() {
         </Box>
         {spreadsheet && (
           <DataGrid
-            rows={rows}
+            rows={filteredRows}
             columns={[
               // Dynamic columns generated from spreadsheet column definitions
               ...spreadsheet.columns
