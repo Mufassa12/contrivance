@@ -56,6 +56,121 @@ export class SpreadsheetService {
     return apiService.get(`/api/spreadsheets/${spreadsheetId}/collaborators`);
   }
 
+  // Aggregate deal values across all spreadsheets
+  async getAggregatedDealValues(): Promise<{
+    totalValue: number;
+    averageValue: number;
+    dealCount: number;
+    quarterlyBreakdown: {
+      Q1: number;
+      Q2: number; 
+      Q3: number;
+      Q4: number;
+    };
+    pipelineBreakdown: Array<{
+      spreadsheetId: string;
+      name: string;
+      totalValue: number;
+      dealCount: number;
+    }>;
+  }> {
+    try {
+      // Get all spreadsheets
+      const spreadsheets = await this.getSpreadsheets({ page: 1, limit: 100 });
+      
+      let totalValue = 0;
+      let dealCount = 0;
+      const quarterlyBreakdown = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
+      const pipelineBreakdown: Array<{
+        spreadsheetId: string;
+        name: string;
+        totalValue: number;
+        dealCount: number;
+      }> = [];
+
+      // Helper function to determine quarter from date
+      const getQuarter = (dateString: string): keyof typeof quarterlyBreakdown => {
+        const date = new Date(dateString);
+        const month = date.getMonth() + 1;
+        if (month >= 1 && month <= 3) return 'Q1';
+        if (month >= 4 && month <= 6) return 'Q2';  
+        if (month >= 7 && month <= 9) return 'Q3';
+        return 'Q4';
+      };
+
+      // Process each spreadsheet
+      for (const spreadsheet of spreadsheets.data) {
+        try {
+          const [columns, rows] = await Promise.all([
+            this.getColumns(spreadsheet.id),
+            this.getRows(spreadsheet.id)
+          ]);
+
+          let pipelineTotal = 0;
+          let pipelineDealCount = 0;
+
+          // Find the deal value column
+          const dealValueColumn = columns.find(col => 
+            col.name.toLowerCase().includes('deal value') || 
+            col.name.toLowerCase().includes('value') ||
+            col.name.toLowerCase().includes('amount')
+          );
+
+          if (dealValueColumn && rows) {
+            for (const row of rows) {
+              const dealValue = row.row_data[dealValueColumn.name];
+              if (dealValue && !isNaN(Number(dealValue))) {
+                const numericValue = Number(dealValue);
+                totalValue += numericValue;
+                pipelineTotal += numericValue;
+                dealCount++;
+                pipelineDealCount++;
+
+                // Determine quarter based on row date
+                let dateToCheck = row.created_at || new Date().toISOString();
+                
+                // Look for date fields in row data
+                const dateFields = ['date', 'created_date', 'deal_date', 'close_date'];
+                for (const field of dateFields) {
+                  if (row.row_data[field]) {
+                    dateToCheck = row.row_data[field];
+                    break;
+                  }
+                }
+
+                const quarter = getQuarter(dateToCheck);
+                quarterlyBreakdown[quarter] += numericValue;
+              }
+            }
+          }
+
+          pipelineBreakdown.push({
+            spreadsheetId: spreadsheet.id,
+            name: spreadsheet.name,
+            totalValue: pipelineTotal,
+            dealCount: pipelineDealCount
+          });
+
+        } catch (error) {
+          console.error(`Error processing spreadsheet ${spreadsheet.id}:`, error);
+          // Continue with other spreadsheets even if one fails
+        }
+      }
+
+      return {
+        totalValue,
+        averageValue: dealCount > 0 ? totalValue / dealCount : 0,
+        dealCount,
+        quarterlyBreakdown,
+        pipelineBreakdown
+      };
+
+    } catch (error) {
+      console.error('Error getting aggregated deal values:', error);
+      throw error;
+    }
+  }
+
   // WebSocket connection for real-time updates
   createWebSocketConnection(spreadsheetId: string): WebSocket | null {
     try {

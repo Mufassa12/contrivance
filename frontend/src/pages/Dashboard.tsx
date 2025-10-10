@@ -21,6 +21,7 @@ import {
   ListItemText,
   ListItemIcon,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -28,6 +29,10 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import PieChartIcon from '@mui/icons-material/PieChart';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { Spreadsheet, PaginatedResponse } from '../types';
 import { spreadsheetService } from '../services/spreadsheet';
 import { useAuth } from '../hooks/useAuth';
@@ -51,6 +56,26 @@ export const Dashboard: React.FC = () => {
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [spreadsheetToDelete, setSpreadsheetToDelete] = useState<Spreadsheet | null>(null);
+  
+  // Deal value aggregation state
+  const [dealMetrics, setDealMetrics] = useState<{
+    totalValue: number;
+    averageValue: number;
+    dealCount: number;
+    quarterlyBreakdown: {
+      Q1: number;
+      Q2: number; 
+      Q3: number;
+      Q4: number;
+    };
+    pipelineBreakdown: Array<{
+      spreadsheetId: string;
+      name: string;
+      totalValue: number;
+      dealCount: number;
+    }>;
+  } | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
   
   const currentFilter = searchParams.get('filter');
 
@@ -219,6 +244,7 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     loadSpreadsheets();
+    loadDealMetrics();
   }, []);
 
   const loadSpreadsheets = async () => {
@@ -231,6 +257,19 @@ export const Dashboard: React.FC = () => {
       setError(err.response?.data?.error || 'Failed to load spreadsheets');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDealMetrics = async () => {
+    try {
+      setMetricsLoading(true);
+      const metrics = await spreadsheetService.getAggregatedDealValues();
+      setDealMetrics(metrics);
+    } catch (err: any) {
+      console.error('Failed to load deal metrics:', err);
+      // Don't set error state for metrics failure, just log it
+    } finally {
+      setMetricsLoading(false);
     }
   };
 
@@ -326,6 +365,140 @@ export const Dashboard: React.FC = () => {
           {error}
         </Alert>
       )}
+
+      {/* Deal Metrics Dashboard */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AttachMoneyIcon color="primary" />
+          Pipeline Deal Values
+        </Typography>
+        
+        {metricsLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : dealMetrics ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Main Metrics */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+              {/* Total Pipeline Value */}
+              <Card sx={{ textAlign: 'center', height: '100%' }}>
+                <CardContent>
+                  <AccountBalanceIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+                  <Typography variant="h4" component="div" color="primary.main">
+                    ${dealMetrics.totalValue.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Pipeline Value
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              {/* Average Deal Size */}
+              <Card sx={{ textAlign: 'center', height: '100%' }}>
+                <CardContent>
+                  <BarChartIcon sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
+                  <Typography variant="h4" component="div" color="success.main">
+                    ${Math.round(dealMetrics.averageValue).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Average Deal Size
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              {/* Total Deal Count */}
+              <Card sx={{ textAlign: 'center', height: '100%' }}>
+                <CardContent>
+                  <PieChartIcon sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
+                  <Typography variant="h4" component="div" color="info.main">
+                    {dealMetrics.dealCount}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Deals
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              {/* Current Quarter Highlight */}
+              <Card sx={{ textAlign: 'center', height: '100%' }}>
+                <CardContent>
+                  <TrendingUpIcon sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
+                  <Typography variant="h4" component="div" color="warning.main">
+                    ${dealMetrics.quarterlyBreakdown.Q4.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Q4 Pipeline (Current)
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
+
+            {/* Quarterly Breakdown */}
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                Quarterly Breakdown
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+                {Object.entries(dealMetrics.quarterlyBreakdown).map(([quarter, value]) => (
+                  <Card variant="outlined" key={quarter}>
+                    <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
+                      <Typography variant="h6" color="primary">
+                        {quarter}
+                      </Typography>
+                      <Typography variant="h5">
+                        ${value.toLocaleString()}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            </Box>
+
+            {/* Pipeline Breakdown */}
+            {dealMetrics.pipelineBreakdown.length > 0 && (
+              <Box>
+                <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                  Pipeline Breakdown
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
+                  {dealMetrics.pipelineBreakdown.map((pipeline) => (
+                    <Card 
+                      variant="outlined"
+                      key={pipeline.spreadsheetId}
+                      sx={{ 
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                          transform: 'translateY(-1px)',
+                          boxShadow: 1,
+                        }
+                      }}
+                      onClick={() => navigate(`/spreadsheet/${pipeline.spreadsheetId}`)}
+                    >
+                      <CardContent>
+                        <Typography variant="subtitle1" noWrap>
+                          {pipeline.name}
+                        </Typography>
+                        <Typography variant="h6" color="primary">
+                          ${pipeline.totalValue.toLocaleString()}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {pipeline.dealCount} deals
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Typography color="text.secondary">
+            No deal data available
+          </Typography>
+        )}
+      </Paper>
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
