@@ -100,7 +100,7 @@ services:
       - RUST_LOG=info
       - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID}
       - SALESFORCE_CLIENT_SECRET=${SALESFORCE_CLIENT_SECRET}
-      - SALESFORCE_INSTANCE_URL=https://orgfarm-17a5690a8c-dev-ed.develop.my.salesforce.com
+      - SALESFORCE_INSTANCE_URL=https://login.salesforce.com
     ports:
       - "8004:8004"
     depends_on:

@@ -23,7 +23,7 @@ async fn main() -> std::io::Result<()> {
         env::var("SALESFORCE_CLIENT_ID").expect("SALESFORCE_CLIENT_ID must be set"),
         env::var("SALESFORCE_CLIENT_SECRET").expect("SALESFORCE_CLIENT_SECRET must be set"),
         env::var("SALESFORCE_INSTANCE_URL").unwrap_or_else(|_| 
-            "https://orgfarm-17a5690a8c-dev-ed.develop.my.salesforce.com".to_string()
+            "https://login.salesforce.com".to_string()
         ),
     );
 
