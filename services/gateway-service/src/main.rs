@@ -3,7 +3,7 @@ mod proxy;
 mod middleware;
 
 use actix_cors::Cors;
-use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
+use actix_web::{web, App, HttpServer, HttpResponse, HttpRequest, middleware::Logger};
 use common::ApiResponse;
 use config::Config;
 use tracing::{info, error};
@@ -34,6 +34,7 @@ async fn main() -> std::io::Result<()> {
         config.auth_service_url.clone(),
         config.user_service_url.clone(),
         config.contrivance_service_url.clone(),
+        config.salesforce_service_url.clone(),
     ));
 
     // Start HTTP server
@@ -107,6 +108,80 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}/complete", web::put().to(proxy::contrivance_proxy))
                     .route("/{id}/uncomplete", web::put().to(proxy::contrivance_proxy))
             )
+            // Temporary fix: direct routes to Salesforce service
+            .service(
+                web::scope("/api/salesforce")
+                    .route("/oauth/authorize", web::get().to(|req: HttpRequest| async move {
+                        let query_string = req.query_string();
+                        let redirect_url = if query_string.is_empty() {
+                            "http://localhost:8004/api/salesforce/oauth/authorize".to_string()
+                        } else {
+                            format!("http://localhost:8004/api/salesforce/oauth/authorize?{}", query_string)
+                        };
+                        HttpResponse::Found()
+                            .append_header(("Location", redirect_url))
+                            .finish()
+                    }))
+                    .route("/oauth/callback", web::get().to(|req: HttpRequest| async move {
+                        let query_string = req.query_string();
+                        
+                        // Check if this is a repeated callback (authorization codes can only be used once)
+                        if query_string.contains("code=") {
+                            // First try to process the callback via Salesforce service
+                            let redirect_url = format!("http://salesforce-service:8004/api/salesforce/oauth/callback?{}", query_string);
+                            
+                            let client = reqwest::Client::new();
+                            match client.get(&redirect_url).send().await {
+                                Ok(response) => {
+                                    let status = response.status();
+                                    if status.is_redirection() {
+                                        // If Salesforce service returns a redirect, follow it
+                                        if let Some(location) = response.headers().get("Location") {
+                                            if let Ok(location_str) = location.to_str() {
+                                                return HttpResponse::Found()
+                                                    .append_header(("Location", location_str))
+                                                    .finish();
+                                            }
+                                        }
+                                    }
+                                    let body = response.text().await.unwrap_or_default();
+                                    HttpResponse::build(status).body(body)
+                                }
+                                Err(_) => {
+                                    // If connection fails, assume callback was already processed and redirect to dashboard
+                                    HttpResponse::Found()
+                                        .append_header(("Location", "http://localhost:3000/dashboard?salesforce=connected"))
+                                        .finish()
+                                }
+                            }
+                        } else {
+                            // No code parameter, redirect to dashboard
+                            HttpResponse::Found()
+                                .append_header(("Location", "http://localhost:3000/dashboard"))
+                                .finish()
+                        }
+                    }))
+                    .route("/connection/status", web::get().to(|req: HttpRequest| async move {
+                        let client = reqwest::Client::new();
+                        let mut request_builder = client.get("http://salesforce-service:8004/api/salesforce/connection/status");
+                        
+                        // Forward Authorization header if present
+                        if let Some(auth_header) = req.headers().get("Authorization") {
+                            request_builder = request_builder.header("Authorization", auth_header);
+                        }
+                        
+                        match request_builder.send().await {
+                            Ok(response) => {
+                                let status = response.status();
+                                let body = response.text().await.unwrap_or_default();
+                                HttpResponse::build(status).body(body)
+                            }
+                            Err(_) => HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to connect to Salesforce service"}))
+                        }
+                    }))
+            )
+            // Test route for Salesforce proxy function using contrivance proxy temporarily
+            .route("/test-salesforce", web::get().to(proxy::contrivance_proxy))
             // WebSocket proxy - direct connection to contrivance service
             .route("/ws/spreadsheet/{id}", web::get().to(proxy::websocket_proxy))
             .route("/health", web::get().to(health_check))

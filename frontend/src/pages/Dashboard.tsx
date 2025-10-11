@@ -33,8 +33,13 @@ import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import { Spreadsheet, PaginatedResponse } from '../types';
 import { spreadsheetService } from '../services/spreadsheet';
+import { salesforceService, ConnectionStatus, SalesforceService } from '../services/salesforce';
 import { useAuth } from '../hooks/useAuth';
 
 interface SETemplate {
@@ -76,6 +81,11 @@ export const Dashboard: React.FC = () => {
     }>;
   } | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
+  
+  // Salesforce integration state
+  const [salesforceStatus, setSalesforceStatus] = useState<ConnectionStatus | null>(null);
+  const [salesforceLoading, setSalesforceLoading] = useState(true);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   
   const currentFilter = searchParams.get('filter');
 
@@ -245,6 +255,7 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     loadSpreadsheets();
     loadDealMetrics();
+    loadSalesforceStatus();
   }, []);
 
   const loadSpreadsheets = async () => {
@@ -270,6 +281,55 @@ export const Dashboard: React.FC = () => {
       // Don't set error state for metrics failure, just log it
     } finally {
       setMetricsLoading(false);
+    }
+  };
+
+  const loadSalesforceStatus = async () => {
+    console.log('DEBUG: Dashboard loadSalesforceStatus called');
+    try {
+      setSalesforceLoading(true);
+      const status = await salesforceService.getConnectionStatus();
+      console.log('DEBUG: Dashboard received status:', status);
+      setSalesforceStatus(status);
+    } catch (err: any) {
+      console.error('Failed to load Salesforce status:', err);
+      setSalesforceStatus({ connected: false });
+    } finally {
+      setSalesforceLoading(false);
+    }
+  };
+
+  const handleSalesforceConnect = async () => {
+    try {
+      await salesforceService.connectToSalesforce();
+    } catch (err: any) {
+      console.error('Failed to connect to Salesforce:', err);
+      setError('Failed to connect to Salesforce');
+    }
+  };
+
+  const handleImportOpportunities = async () => {
+    try {
+      const importRequest = {
+        create_new_pipeline: true,
+        pipeline_name: `Salesforce Opportunities - ${new Date().toLocaleDateString()}`,
+        field_mappings: SalesforceService.getDefaultOpportunityMappings(),
+      };
+
+      const result = await salesforceService.importOpportunities(importRequest);
+      
+      if (result.success) {
+        setImportDialogOpen(false);
+        // Refresh spreadsheets list
+        await loadSpreadsheets();
+        // Navigate to the new pipeline
+        navigate(`/spreadsheet/${result.spreadsheet_id}`);
+      } else {
+        setError(`Import failed: ${result.errors.join(', ')}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to import opportunities:', err);
+      setError('Failed to import Salesforce opportunities');
     }
   };
 
@@ -497,6 +557,103 @@ export const Dashboard: React.FC = () => {
           <Typography color="text.secondary">
             No deal data available
           </Typography>
+        )}
+      </Paper>
+
+      {/* Salesforce Integration Section */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <IntegrationInstructionsIcon color="primary" />
+          Salesforce Integration
+        </Typography>
+
+        {salesforceLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : salesforceStatus?.connected ? (
+          <Box>
+            {/* Connected State */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <CheckCircleIcon color="success" />
+              <Typography variant="body1" color="success.main">
+                Connected to Salesforce
+              </Typography>
+              {salesforceStatus.user_info && (
+                <Chip 
+                  label={salesforceStatus.user_info.name}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+            </Box>
+
+            {/* Import Actions */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Import Opportunities
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Create a new pipeline from your Salesforce opportunities
+                  </Typography>
+                  <Button 
+                    variant="contained" 
+                    startIcon={<CloudSyncIcon />}
+                    onClick={handleImportOpportunities}
+                    fullWidth
+                  >
+                    Import Opportunities
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Import Leads
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Create a new pipeline from your Salesforce leads
+                  </Typography>
+                  <Button 
+                    variant="outlined" 
+                    startIcon={<CloudSyncIcon />}
+                    onClick={() => setImportDialogOpen(true)}
+                    fullWidth
+                  >
+                    Import Leads
+                  </Button>
+                </CardContent>
+              </Card>
+            </Box>
+
+            {salesforceStatus.last_sync && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                Last synced: {new Date(salesforceStatus.last_sync).toLocaleString()}
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            {/* Not Connected State */}
+            <ErrorIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              Connect to Salesforce
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
+              Import your opportunities and leads from Salesforce to create powerful sales engineering pipelines
+            </Typography>
+            <Button 
+              variant="contained" 
+              size="large"
+              startIcon={<CloudSyncIcon />}
+              onClick={handleSalesforceConnect}
+            >
+              Connect Salesforce
+            </Button>
+          </Box>
         )}
       </Paper>
 

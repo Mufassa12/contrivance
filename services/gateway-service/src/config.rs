@@ -7,6 +7,7 @@ pub struct Config {
     pub auth_service_url: String,
     pub user_service_url: String,
     pub contrivance_service_url: String,
+    pub salesforce_service_url: String,
     pub jwt_secret: String,
     pub rate_limit_requests: usize,
     pub rate_limit_window_seconds: u64,
@@ -27,6 +28,8 @@ impl Config {
                 .unwrap_or_else(|_| "http://localhost:8002".to_string()),
             contrivance_service_url: env::var("CONTRIVANCE_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:8003".to_string()),
+            salesforce_service_url: env::var("SALESFORCE_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:8004".to_string()),
             jwt_secret: env::var("JWT_SECRET")
                 .expect("JWT_SECRET must be set"),
             rate_limit_requests: env::var("RATE_LIMIT_REQUESTS")

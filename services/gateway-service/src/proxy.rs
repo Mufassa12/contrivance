@@ -10,6 +10,7 @@ pub struct ProxyService {
     auth_service_url: String,
     user_service_url: String,
     contrivance_service_url: String,
+    salesforce_service_url: String,
 }
 
 impl ProxyService {
@@ -18,12 +19,14 @@ impl ProxyService {
         auth_service_url: String,
         user_service_url: String,
         contrivance_service_url: String,
+        salesforce_service_url: String,
     ) -> Self {
         Self {
             client,
             auth_service_url,
             user_service_url,
             contrivance_service_url,
+            salesforce_service_url,
         }
     }
 
@@ -208,6 +211,41 @@ pub async fn contrivance_proxy(
             &proxy.contrivance_service_url,
             method,
             &path,
+            query_option,
+            req.headers(),
+            body.map(|b| b.into_inner()),
+        )
+        .await;
+
+    match result {
+        Ok(response) => Ok(response),
+        Err(e) => Ok(HttpResponse::InternalServerError().json(ApiResponse::<()>::error(e.to_string()))),
+    }
+}
+
+// Salesforce service proxy handler
+pub async fn salesforce_proxy(
+    req: HttpRequest,
+    body: Option<web::Json<Value>>,
+    proxy: web::Data<ProxyService>,
+) -> Result<HttpResponse, Error> {
+    let method = match req.method().as_str() {
+        "GET" => reqwest::Method::GET,
+        "POST" => reqwest::Method::POST,
+        "PUT" => reqwest::Method::PUT,
+        "DELETE" => reqwest::Method::DELETE,
+        _ => return Ok(HttpResponse::MethodNotAllowed().finish()),
+    };
+
+    let path = req.path().replace("/api/salesforce", "");
+    let query = req.query_string();
+    let query_option = if query.is_empty() { None } else { Some(query) };
+
+    let result = proxy
+        .proxy_request(
+            &proxy.salesforce_service_url,
+            method,
+            &format!("/api/salesforce{}", path),
             query_option,
             req.headers(),
             body.map(|b| b.into_inner()),

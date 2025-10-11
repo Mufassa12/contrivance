@@ -87,6 +87,29 @@ services:
       - contrivance-network
     restart: unless-stopped
 
+  # Salesforce Integration Service
+  salesforce-service:
+    build:
+      context: .
+      dockerfile: services/salesforce-service/Dockerfile
+    container_name: contrivance-salesforce
+    environment:
+      - DATABASE_URL=postgresql://contrivance_user:contrivance_password@postgres:5432/contrivance
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production-please
+      - PORT=8004
+      - RUST_LOG=info
+      - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID}
+      - SALESFORCE_CLIENT_SECRET=${SALESFORCE_CLIENT_SECRET}
+      - SALESFORCE_INSTANCE_URL=https://orgfarm-17a5690a8c-dev-ed.develop.my.salesforce.com
+    ports:
+      - "8004:8004"
+    depends_on:
+      - postgres
+      - auth-service
+    networks:
+      - contrivance-network
+    restart: unless-stopped
+
   # Gateway Service (API Gateway)
   gateway-service:
     build:
@@ -97,6 +120,7 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8001
       - USER_SERVICE_URL=http://user-service:8002
       - CONTRIVANCE_SERVICE_URL=http://contrivance-service:8003
+      - SALESFORCE_SERVICE_URL=http://salesforce-service:8004
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production-please
       - PORT=8080
       - RATE_LIMIT_REQUESTS=100
@@ -108,6 +132,7 @@ services:
       - auth-service
       - user-service
       - contrivance-service
+      - salesforce-service
     networks:
       - contrivance-network
     restart: unless-stopped
