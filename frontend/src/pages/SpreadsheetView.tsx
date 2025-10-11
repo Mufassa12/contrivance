@@ -30,6 +30,7 @@ import {
   CircularProgress as MuiCircularProgress,
   Tabs,
   Tab,
+  Autocomplete,
 } from '@mui/material';
 import {
   DataGrid,
@@ -61,6 +62,7 @@ import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import LinkIcon from '@mui/icons-material/Link';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { spreadsheetService } from '../services/spreadsheet';
+import { salesforceService, SalesforceAccount } from '../services/salesforce';
 import { SpreadsheetColumn, SpreadsheetRow } from '../types';
 
 interface SpreadsheetData {
@@ -135,12 +137,18 @@ function EditToolbar(props: EditToolbarProps) {
 export function SpreadsheetView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+
+
   const [spreadsheet, setSpreadsheet] = useState<SpreadsheetData | null>(null);
   const [rows, setRows] = useState<GridRowsProp>([]);
   const [rowModesModel, setRowModesModel] = useState<GridRowModesModel>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
+  
+  // Salesforce state
+  const [salesforceAccounts, setSalesforceAccounts] = useState<SalesforceAccount[]>([]);
   
   // Todo state
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -162,6 +170,7 @@ export function SpreadsheetView() {
   // Quarterly filtering state
   const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
   const [filteredRows, setFilteredRows] = useState<GridRowsProp>([]);
+
 
   // Function to determine quarter from date
   const getQuarter = (dateString: string): string => {
@@ -212,7 +221,10 @@ export function SpreadsheetView() {
 
   // Update filtered rows whenever rows or selectedQuarter changes
   useEffect(() => {
+    console.log('🔄 Filtering rows - Input rows:', rows.length, 'Selected quarter:', selectedQuarter);
     const filtered = filterRowsByQuarter(rows, selectedQuarter);
+    console.log('🔄 Filtered result:', filtered.length, 'rows');
+    console.log('🔄 Filtered row IDs:', filtered.map(r => r.id));
     setFilteredRows(filtered);
   }, [rows, selectedQuarter]);
 
@@ -224,11 +236,15 @@ export function SpreadsheetView() {
   };
 
   const handleEditClick = (id: GridRowId) => () => {
-    setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
+    if (filteredRows.find(row => row.id === id)) {
+      setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
+    }
   };
 
   const handleSaveClick = (id: GridRowId) => () => {
-    setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+    if (filteredRows.find(row => row.id === id)) {
+      setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+    }
   };
 
   const handleDeleteClick = (id: GridRowId) => async () => {
@@ -312,6 +328,13 @@ export function SpreadsheetView() {
   };
 
   useEffect(() => {
+    // Reset all grid state when changing spreadsheets
+    setRowModesModel({});
+    setRows([]);
+    setFilteredRows([]);
+    setLoading(true);
+    setError(null);
+    
     const fetchSpreadsheet = async () => {
       if (!id) {
         setError('No spreadsheet ID provided');
@@ -387,6 +410,49 @@ export function SpreadsheetView() {
     fetchSpreadsheet();
     loadTodos();
   }, [id]);
+
+  // Fetch Salesforce accounts for Company autocomplete
+  useEffect(() => {
+    const fetchSalesforceAccounts = async () => {
+      try {
+        const accounts = await salesforceService.getAccounts();
+        setSalesforceAccounts(accounts);
+      } catch (error) {
+        console.warn('Failed to fetch Salesforce accounts:', error);
+        // Don't show error to user as this is optional functionality
+      }
+    };
+
+    fetchSalesforceAccounts();
+  }, []);
+
+  // Clear row editing state when there are no rows to prevent DataGrid errors
+  useEffect(() => {
+    if (filteredRows.length === 0) {
+      setRowModesModel({});
+    }
+  }, [filteredRows.length]);
+
+  // Put new rows in edit mode after DataGrid renders
+  useEffect(() => {
+    if (rows.length > 0) {
+      const newRows = rows.filter(row => row.isNew);
+      if (newRows.length > 0) {
+        setRowModesModel(prevModel => {
+          const newModel = { ...prevModel };
+          newRows.forEach(row => {
+            if (!newModel[row.id]) {  // Only set if not already in edit mode
+              newModel[row.id] = {
+                mode: GridRowModes.Edit,
+                fieldToFocus: spreadsheet?.columns.sort((a, b) => a.position - b.position)[0]?.name
+              };
+            }
+          });
+          return newModel;
+        });
+      }
+    }
+  }, [rows, spreadsheet?.columns]);
 
   // Load users for assignment when todo dialog opens
   useEffect(() => {
@@ -932,6 +998,7 @@ export function SpreadsheetView() {
             startIcon={<AddIcon />}
             onClick={() => {
               const id = Math.random().toString(36).substr(2, 9);
+              console.log('➕ Add Row clicked - Generated ID:', id);
               const newRow: any = { id, isNew: true };
               
               // Initialize with default values for all columns
@@ -956,23 +1023,37 @@ export function SpreadsheetView() {
                 }
               });
 
-              setRows((oldRows) => [...oldRows, newRow]);
-              setRowModesModel((oldModel) => ({
-                ...oldModel,
-                [id]: { 
-                  mode: GridRowModes.Edit, 
-                  fieldToFocus: spreadsheet?.columns.sort((a, b) => a.position - b.position)[0]?.name 
-                },
-              }));
+              console.log('➕ Adding new row to state:', newRow);
+              console.log('➕ Current rows before adding:', rows.length);
+              setRows((oldRows) => {
+                const newRows = [...oldRows, newRow];
+                console.log('➕ New rows array:', newRows.length, 'IDs:', newRows.map(r => r.id));
+                return newRows;
+              });
+              console.log('➕ Setting edit mode for new row:', id);
+              setRowModesModel((oldModel) => {
+                const newModel = {
+                  ...oldModel,
+                  [id]: { 
+                    mode: GridRowModes.Edit, 
+                    fieldToFocus: spreadsheet?.columns.sort((a, b) => a.position - b.position)[0]?.name 
+                  },
+                };
+                console.log('➕ New rowModesModel:', Object.keys(newModel));
+                return newModel;
+              });
             }}
           >
             Add Row
           </Button>
         </Box>
-        {spreadsheet && (
-          <DataGrid
-            rows={filteredRows}
-            columns={[
+        {spreadsheet && !loading && (
+          (() => {
+            return (
+              <DataGrid
+                key={`${spreadsheet.id}-${filteredRows.length}`}
+                rows={filteredRows}
+              columns={[
               // Dynamic columns generated from spreadsheet column definitions
               ...spreadsheet.columns
                 .sort((a, b) => a.position - b.position)
@@ -1117,6 +1198,75 @@ export function SpreadsheetView() {
                       };
                     
                     default:
+                      // Special handling for Company field - use Salesforce Account autocomplete
+                      if (col.name.toLowerCase() === 'company') {
+                        return {
+                          ...baseColumn,
+                          width: 250,
+                          renderEditCell: (params) => {
+                            return (
+                              <Autocomplete
+                                fullWidth
+                                options={salesforceAccounts}
+                                getOptionLabel={(option) => typeof option === 'string' ? option : option.Name}
+                                value={salesforceAccounts.find(account => account.Name === params.value) || null}
+                                onChange={(event, newValue) => {
+                                  params.api.setEditCellValue({
+                                    id: params.id,
+                                    field: params.field,
+                                    value: (typeof newValue === 'string' ? newValue : newValue?.Name) || '',
+                                  });
+                                }}
+                                renderInput={(inputParams) => (
+                                  <TextField
+                                    {...inputParams}
+                                    variant="outlined"
+                                    size="small"
+                                    placeholder="Select or type company name..."
+                                    fullWidth
+                                  />
+                                )}
+                                freeSolo
+                                clearOnEscape
+                                disableClearable={false}
+                                filterOptions={(options, { inputValue }) => {
+                                  const filtered = options.filter(option =>
+                                    option.Name.toLowerCase().includes(inputValue.toLowerCase())
+                                  );
+                                  
+                                  // If the input doesn't match any existing account, show option to create new
+                                  if (inputValue && !filtered.some(option => 
+                                    option.Name.toLowerCase() === inputValue.toLowerCase()
+                                  )) {
+                                    filtered.push({
+                                      Id: `new-${inputValue}`,
+                                      Name: inputValue,
+                                      Type: 'Custom Entry'
+                                    } as SalesforceAccount);
+                                  }
+                                  
+                                  return filtered;
+                                }}
+                                renderOption={(props, option) => (
+                                  <Box component="li" {...props}>
+                                    <Box>
+                                      <Typography variant="body2">
+                                        {option.Name}
+                                      </Typography>
+                                      {option.Industry && (
+                                        <Typography variant="caption" color="textSecondary">
+                                          {option.Industry} • {option.Type || 'Account'}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  </Box>
+                                )}
+                              />
+                            );
+                          },
+                        };
+                      }
+                      
                       return baseColumn;
                   }
                 }),
@@ -1208,11 +1358,11 @@ export function SpreadsheetView() {
               },
               {
                 field: 'actions',
-                type: 'actions',
+                type: 'actions' as const,
                 headerName: 'Actions',
                 width: 100,
                 cellClassName: 'actions',
-                getActions: ({ id }) => {
+                getActions: ({ id }: { id: any }) => {
                   const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
 
                   if (isInEditMode) {
@@ -1247,7 +1397,7 @@ export function SpreadsheetView() {
                     />,
                   ];
                 },
-              },
+              }
             ]}
             editMode="row"
             rowModesModel={rowModesModel}
@@ -1264,6 +1414,8 @@ export function SpreadsheetView() {
               },
             }}
           />
+            );
+          })()
         )}
       </Paper>
 

@@ -134,13 +134,11 @@ impl SalesforceClient {
         let limit_clause = limit.map_or_else(|| "".to_string(), |l| format!(" LIMIT {}", l));
         
         let query = format!(
-            "SELECT Id, Name, Type, Industry, Phone, Website, BillingCity, BillingState, BillingCountry, CreatedDate
-             FROM Account 
-             WHERE IsDeleted = false{}
-             ORDER BY Name",
+            "SELECT Id, Name, Type, Industry, Phone, Website, BillingCity, BillingState, BillingCountry, CreatedDate FROM Account WHERE IsDeleted = false ORDER BY Name{}",
             limit_clause
         );
 
+        println!("DEBUG: SOQL Query: {}", query);
         self.execute_query(&token, &query).await
     }
 

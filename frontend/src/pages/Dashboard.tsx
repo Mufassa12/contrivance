@@ -336,6 +336,34 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleImportAccounts = async () => {
+    try {
+      const importRequest = {
+        create_new_pipeline: true,
+        pipeline_name: `Salesforce Accounts - ${new Date().toLocaleDateString()}`,
+        field_mappings: SalesforceService.getDefaultAccountMappings(),
+      };
+
+      const result = await salesforceService.importAccounts(importRequest);
+      
+      if (result.success) {
+        setImportDialogOpen(false);
+        // Refresh spreadsheets list
+        await loadSpreadsheets();
+        // Navigate to the new pipeline
+        navigate(`/spreadsheet/${result.spreadsheet_id}`);
+      } else {
+        const errorMsg = result.errors && Array.isArray(result.errors) 
+          ? result.errors.join(', ')
+          : 'Import failed';
+        setError(`Import failed: ${errorMsg}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to import accounts:', err);
+      setError('Failed to import Salesforce accounts');
+    }
+  };
+
   const handleCreateSpreadsheet = async (template: SETemplate) => {
     try {
       console.log('Creating spreadsheet with template:', template.name);
@@ -592,7 +620,7 @@ export const Dashboard: React.FC = () => {
             </Box>
 
             {/* Import Actions */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr' }, gap: 2 }}>
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
@@ -608,6 +636,25 @@ export const Dashboard: React.FC = () => {
                     fullWidth
                   >
                     Import Opportunities
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Import Accounts
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Create a new pipeline from your Salesforce company accounts
+                  </Typography>
+                  <Button 
+                    variant="outlined" 
+                    startIcon={<CloudSyncIcon />}
+                    onClick={handleImportAccounts}
+                    fullWidth
+                  >
+                    Import Accounts
                   </Button>
                 </CardContent>
               </Card>
