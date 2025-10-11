@@ -54,8 +54,9 @@ pub async fn oauth_callback(
         }))),
     };
 
-    // Temporarily bypass state validation for testing and use a hardcoded user ID
-    let user_id = Uuid::new_v4(); // Generate a temporary UUID for testing
+    // Temporarily bypass state validation for testing and use the same hardcoded user ID as auth bypass
+    let user_id = Uuid::parse_str("b78dc414-a1f3-4998-8434-900b67517113")
+        .unwrap_or_else(|_| Uuid::new_v4()); // Use consistent test user ID
 
     let redirect_uri = "http://localhost:8080/api/salesforce/oauth/callback";
     
