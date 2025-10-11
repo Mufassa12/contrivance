@@ -25,10 +25,11 @@ impl SalesforceClient {
 
     pub fn get_authorize_url(&self, redirect_uri: &str, state: &str) -> String {
         format!(
-            "{}/services/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&state={}",
+            "{}/services/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&state={}&scope={}",
             self.instance_url, self.client_id, 
             urlencoding::encode(redirect_uri),
-            urlencoding::encode(state)
+            urlencoding::encode(state),
+            urlencoding::encode("api refresh_token offline_access")
         )
     }
 
