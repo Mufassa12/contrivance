@@ -185,7 +185,7 @@ pub async fn import_opportunities(
     let claims = extract_user_from_token(&req)?;
     
     // Get Salesforce connection
-    let connection = match database::get_salesforce_connection(&pool, claims.user_id).await {
+    let mut connection = match database::get_salesforce_connection(&pool, claims.user_id).await {
         Ok(Some(conn)) => conn,
         Ok(None) => {
             return Ok(HttpResponse::BadRequest().json(ImportResponse {
@@ -205,25 +205,51 @@ pub async fn import_opportunities(
         }
     };
 
-    let token = SalesforceToken {
-        access_token: connection.access_token,
-        refresh_token: connection.refresh_token,
-        instance_url: connection.instance_url,
+    // Create token from connection
+    let mut token = SalesforceToken {
+        access_token: connection.access_token.clone(),
+        refresh_token: connection.refresh_token.clone(),
+        instance_url: connection.instance_url.clone(),
         token_type: "Bearer".to_string(),
         expires_in: None,
         created_at: connection.created_at,
     };
 
-    // Fetch opportunities from Salesforce
+    // Fetch opportunities from Salesforce with automatic token refresh
     let opportunities = match sf_client.query_opportunities(&token, None).await {
         Ok(opps) => opps,
         Err(e) => {
-            return Ok(HttpResponse::BadRequest().json(ImportResponse {
-                success: false,
-                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
-                records_imported: 0,
-                errors: vec![format!("Failed to fetch opportunities: {}", e)],
-            }));
+            let error_msg = e.to_string();
+            
+            // Try to refresh token if it's expired
+            match refresh_connection_if_expired(&pool, &sf_client, &mut connection, &error_msg).await {
+                Ok(true) => {
+                    // Token was refreshed, update our token and retry
+                    token.access_token = connection.access_token.clone();
+                    token.instance_url = connection.instance_url.clone();
+                    
+                    match sf_client.query_opportunities(&token, None).await {
+                        Ok(opps) => opps,
+                        Err(retry_e) => {
+                            return Ok(HttpResponse::BadRequest().json(ImportResponse {
+                                success: false,
+                                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                                records_imported: 0,
+                                errors: vec![format!("Failed to fetch opportunities after token refresh: {}", retry_e)],
+                            }));
+                        }
+                    }
+                }
+                Ok(false) | Err(_) => {
+                    // Not a token issue or refresh failed
+                    return Ok(HttpResponse::BadRequest().json(ImportResponse {
+                        success: false,
+                        spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                        records_imported: 0,
+                        errors: vec![format!("Failed to fetch opportunities: {}", error_msg)],
+                    }));
+                }
+            }
         }
     };
 
@@ -273,4 +299,53 @@ pub async fn sync_pipeline(
         "success": true,
         "message": "Pipeline sync not yet implemented"
     })))
+}
+
+async fn refresh_connection_if_expired(
+    pool: &sqlx::PgPool,
+    sf_client: &SalesforceClient,
+    connection: &mut SalesforceConnection,
+    error_msg: &str,
+) -> Result<bool, String> {
+    // Check if the error indicates an expired session
+    if !error_msg.contains("INVALID_SESSION_ID") && 
+       !error_msg.contains("Session expired") && 
+       !error_msg.contains("Session invalid") {
+        println!("Error is not related to token expiration: {}", error_msg);
+        return Ok(false); // Not a token expiration error
+    }
+    
+    println!("Detected expired/invalid session error: {}", error_msg);
+    
+    // Attempt to refresh the token
+    let refresh_token = match &connection.refresh_token {
+        Some(token) => token,
+        None => {
+            println!("No refresh token available for connection {}", connection.id);
+            return Err("No refresh token available. Please reconnect to Salesforce.".to_string());
+        }
+    };
+    
+    println!("Attempting to refresh expired Salesforce token...");
+    
+    match sf_client.refresh_token(refresh_token).await {
+        Ok(new_token) => {
+            println!("Successfully refreshed Salesforce token");
+            
+            // Update the connection in the database
+            if let Err(e) = database::update_salesforce_tokens(pool, connection.id, &new_token).await {
+                return Err(format!("Failed to save refreshed tokens: {}", e));
+            }
+            
+            // Update the connection object with new tokens
+            connection.access_token = new_token.access_token;
+            connection.instance_url = new_token.instance_url;
+            
+            Ok(true) // Token was refreshed successfully
+        }
+        Err(e) => {
+            println!("Failed to refresh Salesforce token: {}", e);
+            Err(format!("Token refresh failed: {}", e))
+        }
+    }
 }

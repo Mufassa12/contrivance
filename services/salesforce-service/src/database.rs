@@ -60,3 +60,36 @@ pub async fn save_salesforce_connection(
 
     Ok(id)
 }
+
+pub async fn update_salesforce_tokens(
+    pool: &PgPool,
+    connection_id: uuid::Uuid,
+    token: &crate::models::SalesforceToken,
+) -> Result<()> {
+    let expires_at = token.expires_in.map(|exp| {
+        token.created_at + chrono::Duration::seconds(exp)
+    });
+
+    sqlx::query(
+        r#"
+        UPDATE salesforce_connections 
+        SET 
+            access_token = $2,
+            refresh_token = COALESCE($3, refresh_token),
+            instance_url = $4,
+            updated_at = $5,
+            expires_at = $6
+        WHERE id = $1
+        "#
+    )
+    .bind(connection_id)
+    .bind(&token.access_token)
+    .bind(&token.refresh_token)
+    .bind(&token.instance_url)
+    .bind(chrono::Utc::now())
+    .bind(expires_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
