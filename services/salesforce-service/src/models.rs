@@ -84,7 +84,7 @@ pub struct SalesforceToken {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ImportRequest {
-    pub spreadsheet_id: Option<Uuid>,
+    pub spreadsheet_id: Option<String>,
     pub create_new_pipeline: bool,
     pub pipeline_name: Option<String>,
     pub field_mappings: std::collections::HashMap<String, String>,
@@ -93,7 +93,7 @@ pub struct ImportRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ImportResponse {
     pub success: bool,
-    pub spreadsheet_id: Uuid,
+    pub spreadsheet_id: String,
     pub records_imported: usize,
     pub errors: Vec<String>,
 }

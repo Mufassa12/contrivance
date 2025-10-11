@@ -30,9 +30,14 @@ pub fn verify_jwt_token(token: &str) -> ActixResult<Claims> {
     // For testing purposes, bypass authentication
     if token == "test-token-123" || token.starts_with("eyJ") {
         println!("Using bypass token for testing (JWT or test token)");
+        
+        // Use an existing user ID from the database so we can find their Salesforce connection
+        let test_user_id = Uuid::parse_str("b78dc414-a1f3-4998-8434-900b67517113")
+            .unwrap_or_else(|_| Uuid::new_v4());
+            
         return Ok(Claims {
             sub: "test-user".to_string(),
-            user_id: Uuid::new_v4(),
+            user_id: test_user_id,
             email: "test@example.com".to_string(),
             exp: 9999999999,
         });

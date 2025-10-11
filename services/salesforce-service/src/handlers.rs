@@ -218,7 +218,7 @@ pub async fn import_opportunities(
     
     Ok(HttpResponse::Ok().json(ImportResponse {
         success: true,
-        spreadsheet_id: import_req.spreadsheet_id.unwrap_or_else(|| Uuid::new_v4()),
+        spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "generated-id".to_string()),
         records_imported: opportunities.len(),
         errors: vec![],
     }))
@@ -237,7 +237,7 @@ pub async fn import_leads(
     
     Ok(HttpResponse::Ok().json(ImportResponse {
         success: true,
-        spreadsheet_id: import_req.spreadsheet_id.unwrap_or_else(|| Uuid::new_v4()),
+        spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "generated-id".to_string()),
         records_imported: 0,
         errors: vec!["Lead import not yet implemented".to_string()],
     }))
