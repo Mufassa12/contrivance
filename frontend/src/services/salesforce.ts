@@ -65,29 +65,14 @@ export class SalesforceService {
 
   // Check if user has connected Salesforce
   async getConnectionStatus(): Promise<ConnectionStatus> {
-    console.log('🚀 NEW CODE VERSION 2.0 - FIXED TOKEN ISSUE! 🚀');
-    console.log('DEBUG: getConnectionStatus called - using direct service at 8004');
-    console.log('DEBUG: Current URL:', window.location.href);
-    console.log('DEBUG: localStorage keys:', Object.keys(localStorage));
-    console.log('DEBUG: localStorage length:', localStorage.length);
-    
     const token = this.getAuthToken();
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    
-    console.log('DEBUG: token:', localStorage.getItem('token') ? `Found: ${localStorage.getItem('token')!.substring(0, 20)}...` : 'null');
-    console.log('DEBUG: access_token:', accessToken ? `Found: ${accessToken.substring(0, 20)}...` : 'null');
-    console.log('DEBUG: refresh_token:', refreshToken ? `Found: ${refreshToken.substring(0, 20)}...` : 'null');
-    console.log('DEBUG: Using token (fallback to access_token):', token ? `Found: ${token.substring(0, 20)}...` : 'null');
     
     if (!token) {
-      console.log('DEBUG: No token found - returning connected: false');
       return { connected: false };
     }
     
     try {
       const url = `http://localhost:8004/api/salesforce/connection/status?t=${Date.now()}`;
-      console.log('DEBUG: Making request to:', url);
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -109,13 +94,10 @@ export class SalesforceService {
 
   // Initiate OAuth flow
   async connectToSalesforce(): Promise<void> {
-    console.log('DEBUG: connectToSalesforce called - using direct service at 8004');
-    
     try {
       // Since we're bypassing auth for testing, just redirect directly to the OAuth endpoint
       // The backend will handle the redirect to Salesforce
       const url = `http://localhost:8004/api/salesforce/oauth/authorize`;
-      console.log('DEBUG: Redirecting to OAuth endpoint:', url);
       window.location.href = url;
     } catch (error) {
       console.error('Error initiating Salesforce OAuth:', error);
