@@ -187,12 +187,22 @@ pub async fn import_opportunities(
     // Get Salesforce connection
     let connection = match database::get_salesforce_connection(&pool, claims.user_id).await {
         Ok(Some(conn)) => conn,
-        Ok(None) => return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "No Salesforce connection found"
-        }))),
-        Err(e) => return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": format!("Database error: {}", e)
-        }))),
+        Ok(None) => {
+            return Ok(HttpResponse::BadRequest().json(ImportResponse {
+                success: false,
+                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                records_imported: 0,
+                errors: vec!["No Salesforce connection found. Please connect to Salesforce first.".to_string()],
+            }));
+        }
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ImportResponse {
+                success: false,
+                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                records_imported: 0,
+                errors: vec![format!("Database error: {}", e)],
+            }));
+        }
     };
 
     let token = SalesforceToken {
@@ -207,9 +217,14 @@ pub async fn import_opportunities(
     // Fetch opportunities from Salesforce
     let opportunities = match sf_client.query_opportunities(&token, None).await {
         Ok(opps) => opps,
-        Err(e) => return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": format!("Failed to fetch opportunities: {}", e)
-        }))),
+        Err(e) => {
+            return Ok(HttpResponse::BadRequest().json(ImportResponse {
+                success: false,
+                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                records_imported: 0,
+                errors: vec![format!("Failed to fetch opportunities: {}", e)],
+            }));
+        }
     };
 
     // TODO: Create/update spreadsheet with opportunity data

@@ -148,7 +148,7 @@ export class SalesforceService {
   }
 
   // Import opportunities to a spreadsheet
-  async importOpportunities(request: ImportRequest): Promise<any> {
+  async importOpportunities(request: ImportRequest): Promise<ImportResponse> {
     const token = this.getAuthToken();
     const response = await fetch('http://localhost:8004/api/salesforce/import/opportunities', {
       method: 'POST',
@@ -158,7 +158,20 @@ export class SalesforceService {
       },
       body: JSON.stringify(request),
     });
-    return await response.json();
+    
+    const result = await response.json();
+    
+    // Ensure the response has the expected structure
+    if (!result.hasOwnProperty('success')) {
+      return {
+        success: false,
+        spreadsheet_id: '',
+        records_imported: 0,
+        errors: [result.error || 'Unknown error occurred'],
+      };
+    }
+    
+    return result;
   }
 
   // Import leads to a spreadsheet

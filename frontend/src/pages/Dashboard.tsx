@@ -325,7 +325,10 @@ export const Dashboard: React.FC = () => {
         // Navigate to the new pipeline
         navigate(`/spreadsheet/${result.spreadsheet_id}`);
       } else {
-        setError(`Import failed: ${result.errors.join(', ')}`);
+        const errorMsg = result.errors && Array.isArray(result.errors) 
+          ? result.errors.join(', ')
+          : 'Import failed';
+        setError(`Import failed: ${errorMsg}`);
       }
     } catch (err: any) {
       console.error('Failed to import opportunities:', err);
