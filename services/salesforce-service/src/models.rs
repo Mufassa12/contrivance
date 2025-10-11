@@ -50,6 +50,22 @@ pub struct SalesforceAccount {
     pub id: String,
     #[serde(rename = "Name")]
     pub name: String,
+    #[serde(rename = "Type")]
+    pub account_type: Option<String>,
+    #[serde(rename = "Industry")]
+    pub industry: Option<String>,
+    #[serde(rename = "Phone")]
+    pub phone: Option<String>,
+    #[serde(rename = "Website")]
+    pub website: Option<String>,
+    #[serde(rename = "BillingCity")]
+    pub billing_city: Option<String>,
+    #[serde(rename = "BillingState")]
+    pub billing_state: Option<String>,
+    #[serde(rename = "BillingCountry")]
+    pub billing_country: Option<String>,
+    #[serde(rename = "CreatedDate")]
+    pub created_date: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

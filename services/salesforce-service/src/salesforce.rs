@@ -130,6 +130,20 @@ impl SalesforceClient {
         self.execute_query(&token, &query).await
     }
 
+    pub async fn query_accounts(&self, token: &SalesforceToken, limit: Option<i32>) -> Result<Vec<SalesforceAccount>> {
+        let limit_clause = limit.map_or_else(|| "".to_string(), |l| format!(" LIMIT {}", l));
+        
+        let query = format!(
+            "SELECT Id, Name, Type, Industry, Phone, Website, BillingCity, BillingState, BillingCountry, CreatedDate
+             FROM Account 
+             WHERE IsDeleted = false{}
+             ORDER BY Name",
+            limit_clause
+        );
+
+        self.execute_query(&token, &query).await
+    }
+
     async fn execute_query<T>(&self, token: &SalesforceToken, query: &str) -> Result<Vec<T>>
     where
         T: serde::de::DeserializeOwned,

@@ -32,6 +32,19 @@ export interface SalesforceLead {
   CreatedDate?: string;
 }
 
+export interface SalesforceAccount {
+  Id: string;
+  Name: string;
+  Type?: string;
+  Industry?: string;
+  Phone?: string;
+  Website?: string;
+  BillingCity?: string;
+  BillingState?: string;
+  BillingCountry?: string;
+  CreatedDate?: string;
+}
+
 export interface ConnectionStatus {
   connected: boolean;
   user_info?: {
@@ -170,6 +183,45 @@ export class SalesforceService {
     return await response.json();
   }
 
+  // Get accounts from Salesforce
+  async getAccounts(): Promise<SalesforceAccount[]> {
+    const token = this.getAuthToken();
+    const response = await fetch('http://localhost:8004/api/salesforce/accounts', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return await response.json();
+  }
+
+  // Import accounts to a spreadsheet
+  async importAccounts(request: ImportRequest): Promise<ImportResponse> {
+    const token = this.getAuthToken();
+    const response = await fetch('http://localhost:8004/api/salesforce/import/accounts', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+    
+    const result = await response.json();
+    
+    // Ensure the response has the expected structure
+    if (!result.hasOwnProperty('success')) {
+      return {
+        success: false,
+        spreadsheet_id: '',
+        records_imported: 0,
+        errors: [result.error || 'Unknown error occurred'],
+      };
+    }
+    
+    return result;
+  }
+
   // Default field mappings for opportunities
   static getDefaultOpportunityMappings(): Record<string, string> {
     return {
@@ -193,6 +245,21 @@ export class SalesforceService {
       'Phone': 'Phone',
       'Status': 'Status',
       'Owner': 'Owner.Name',
+      'Created Date': 'CreatedDate',
+    };
+  }
+
+  // Default field mappings for accounts
+  static getDefaultAccountMappings(): Record<string, string> {
+    return {
+      'Company Name': 'Name',
+      'Account Type': 'Type',
+      'Industry': 'Industry',
+      'Phone': 'Phone',
+      'Website': 'Website',
+      'City': 'BillingCity',
+      'State': 'BillingState',
+      'Country': 'BillingCountry',
       'Created Date': 'CreatedDate',
     };
   }

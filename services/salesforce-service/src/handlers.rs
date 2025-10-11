@@ -28,6 +28,7 @@ pub async fn oauth_authorize(
     let state = "test-user-123".to_string(); // Temporary hardcoded state
     
     let auth_url = sf_client.get_authorize_url(redirect_uri, &state);
+    println!("🔍 Generated OAuth URL: {}", auth_url);
     
     Ok(HttpResponse::Found()
         .append_header(("Location", auth_url))
@@ -177,6 +178,40 @@ pub async fn get_leads(
     }
 }
 
+pub async fn get_accounts(
+    pool: web::Data<sqlx::PgPool>,
+    sf_client: web::Data<SalesforceClient>,
+    req: HttpRequest,
+) -> ActixResult<HttpResponse> {
+    let claims = extract_user_from_token(&req)?;
+    
+    let connection = match database::get_salesforce_connection(&pool, claims.user_id).await {
+        Ok(Some(conn)) => conn,
+        Ok(None) => return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": "No Salesforce connection found"
+        }))),
+        Err(e) => return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Database error: {}", e)
+        }))),
+    };
+
+    let token = SalesforceToken {
+        access_token: connection.access_token,
+        refresh_token: connection.refresh_token,
+        instance_url: connection.instance_url,
+        token_type: "Bearer".to_string(),
+        expires_in: None,
+        created_at: connection.created_at,
+    };
+
+    match sf_client.query_accounts(&token, Some(100)).await {
+        Ok(accounts) => Ok(HttpResponse::Ok().json(accounts)),
+        Err(e) => Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": format!("Failed to fetch accounts: {}", e)
+        }))),
+    }
+}
+
 pub async fn import_opportunities(
     pool: web::Data<sqlx::PgPool>,
     sf_client: web::Data<SalesforceClient>,
@@ -282,6 +317,93 @@ pub async fn import_leads(
         spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "generated-id".to_string()),
         records_imported: 0,
         errors: vec!["Lead import not yet implemented".to_string()],
+    }))
+}
+
+pub async fn import_accounts(
+    pool: web::Data<sqlx::PgPool>,
+    sf_client: web::Data<SalesforceClient>,
+    req: HttpRequest,
+    import_req: web::Json<ImportRequest>,
+) -> ActixResult<HttpResponse> {
+    let claims = extract_user_from_token(&req)?;
+    
+    // Get Salesforce connection
+    let mut connection = match database::get_salesforce_connection(&pool, claims.user_id).await {
+        Ok(Some(conn)) => conn,
+        Ok(None) => {
+            return Ok(HttpResponse::BadRequest().json(ImportResponse {
+                success: false,
+                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                records_imported: 0,
+                errors: vec!["No Salesforce connection found. Please connect to Salesforce first.".to_string()],
+            }));
+        }
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ImportResponse {
+                success: false,
+                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                records_imported: 0,
+                errors: vec![format!("Database error: {}", e)],
+            }));
+        }
+    };
+
+    let mut token = SalesforceToken {
+        access_token: connection.access_token.clone(),
+        refresh_token: connection.refresh_token.clone(),
+        instance_url: connection.instance_url.clone(),
+        token_type: "Bearer".to_string(),
+        expires_in: None,
+        created_at: connection.created_at,
+    };
+
+    // Fetch accounts from Salesforce with automatic token refresh
+    let accounts = match sf_client.query_accounts(&token, Some(100)).await {
+        Ok(accounts) => accounts,
+        Err(e) => {
+            let error_msg = e.to_string();
+            
+            // Try to refresh token if it's expired
+            match refresh_connection_if_expired(&pool, &sf_client, &mut connection, &error_msg).await {
+                Ok(true) => {
+                    // Token was refreshed, update our token and retry
+                    token.access_token = connection.access_token.clone();
+                    token.instance_url = connection.instance_url.clone();
+                    
+                    match sf_client.query_accounts(&token, Some(100)).await {
+                        Ok(accounts) => accounts,
+                        Err(retry_e) => {
+                            return Ok(HttpResponse::BadRequest().json(ImportResponse {
+                                success: false,
+                                spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                                records_imported: 0,
+                                errors: vec![format!("Failed to fetch accounts after token refresh: {}", retry_e)],
+                            }));
+                        }
+                    }
+                }
+                Ok(false) | Err(_) => {
+                    // Not a token issue or refresh failed
+                    return Ok(HttpResponse::BadRequest().json(ImportResponse {
+                        success: false,
+                        spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| "".to_string()),
+                        records_imported: 0,
+                        errors: vec![format!("Failed to fetch accounts: {}", error_msg)],
+                    }));
+                }
+            }
+        }
+    };
+
+    // TODO: Create/update spreadsheet with account data
+    // For now, return success with the count
+    
+    Ok(HttpResponse::Ok().json(ImportResponse {
+        success: true,
+        spreadsheet_id: import_req.spreadsheet_id.clone().unwrap_or_else(|| format!("accounts-{}", chrono::Utc::now().timestamp())),
+        records_imported: accounts.len(),
+        errors: vec![],
     }))
 }
 
