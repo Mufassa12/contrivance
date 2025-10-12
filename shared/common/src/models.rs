@@ -111,6 +111,7 @@ pub struct UserSession {
 
 /// Column type enumeration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "varchar", rename_all = "lowercase")]
 pub enum ColumnType {
     Text,

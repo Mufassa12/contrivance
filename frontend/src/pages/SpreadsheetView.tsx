@@ -65,6 +65,17 @@ import { spreadsheetService } from '../services/spreadsheet';
 import { salesforceService, SalesforceAccount } from '../services/salesforce';
 import { SpreadsheetColumn, SpreadsheetRow } from '../types';
 
+// Salesforce Account Type options
+const SALESFORCE_ACCOUNT_TYPES = [
+  'Prospect',
+  'Customer - Direct',
+  'Customer - Channel',
+  'Channel Partner / Reseller',
+  'Installation Partner',
+  'Technology Partner',
+  'Other'
+];
+
 interface SpreadsheetData {
   id: string;
   name: string;
@@ -135,6 +146,8 @@ function EditToolbar(props: EditToolbarProps) {
 }
 
 export function SpreadsheetView() {
+  console.log('🎯 COMPONENT MOUNT: SpreadsheetView component is rendering!');
+  
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -149,6 +162,12 @@ export function SpreadsheetView() {
   
   // Salesforce state
   const [salesforceAccounts, setSalesforceAccounts] = useState<SalesforceAccount[]>([]);
+  
+  // Debug log whenever salesforceAccounts state changes
+  useEffect(() => {
+    console.log('🎯 salesforceAccounts state changed:', salesforceAccounts?.length, 'accounts');
+    console.log('🎯 salesforceAccounts content:', salesforceAccounts);
+  }, [salesforceAccounts]);
   
   // Todo state
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -411,19 +430,37 @@ export function SpreadsheetView() {
     loadTodos();
   }, [id]);
 
-  // Fetch Salesforce accounts for Company autocomplete
+  // CRITICAL DEBUG: Test useEffect execution
   useEffect(() => {
+    console.log('🔥 CRITICAL: ANY useEffect is running - this should always appear!');
+  }, []);
+
+  // Fetch Salesforce accounts for Account autocomplete  
+  useEffect(() => {
+    console.log('🚀 SALESFORCE useEffect starting...');
+    console.log('🚀 This is the Salesforce accounts useEffect');
+    
     const fetchSalesforceAccounts = async () => {
       try {
+        console.log('🔄 Starting Salesforce accounts fetch...');
+        console.log('🔍 Current salesforceService:', salesforceService);
+        
         const accounts = await salesforceService.getAccounts();
+        console.log('✅ Salesforce accounts fetched successfully:', accounts?.length, 'accounts');
+        console.log('📋 First few accounts:', accounts?.slice(0, 3));
+        console.log('🔧 Setting accounts in state...');
         setSalesforceAccounts(accounts);
+        console.log('✅ Accounts set in state');
       } catch (error) {
-        console.warn('Failed to fetch Salesforce accounts:', error);
+        console.error('❌ Failed to fetch Salesforce accounts:', error);
+        console.error('❌ Error details:', error instanceof Error ? error.message : String(error));
         // Don't show error to user as this is optional functionality
       }
     };
 
+    console.log('📞 About to call fetchSalesforceAccounts...');
     fetchSalesforceAccounts();
+    console.log('📞 Called fetchSalesforceAccounts');
   }, []);
 
   // Clear row editing state when there are no rows to prevent DataGrid errors
@@ -1059,6 +1096,9 @@ export function SpreadsheetView() {
                 .sort((a, b) => a.position - b.position)
                 .filter(col => visibleColumns[col.name] !== false) // Only show visible columns
                 .map((col): GridColDef => {
+                  console.log(`🔧 Processing column:`, col.name, 'type:', col.column_type, 'position:', col.position);
+                  console.log(`🔍 Is this Type column? name.toLowerCase(): '${col.name.toLowerCase()}' === 'type'?`, col.name.toLowerCase() === 'type');
+                  
                   const baseColumn: GridColDef = {
                     field: col.name,
                     headerName: col.name,
@@ -1083,15 +1123,40 @@ export function SpreadsheetView() {
                       };
                     
                     case 'select':
+                      // Special handling for Type field - auto-populated from Salesforce Account
+                      if (col.name.toLowerCase() === 'type') {
+                        console.log('🔍 Type field column info:', col.name, 'baseColumn.field:', baseColumn.field);
+                        return {
+                          ...baseColumn,
+                          field: 'type', // Normalize to lowercase for both column and row data
+                          width: 200,
+                          editable: false, // Make it read-only since it's auto-populated
+                          renderCell: (params: any) => {
+                            console.log('🎨 Type field renderCell - params.value:', params.value, 'params.field:', params.field, 'params.row:', params.row);
+                            return (
+                              <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                                <Chip
+                                  label={params.value || 'Auto-populated from Account'}
+                                  size="small"
+                                  variant={params.value ? "filled" : "outlined"}
+                                  color={params.value ? "primary" : "default"}
+                                  sx={{ fontSize: '0.75rem' }}
+                                />
+                              </Box>
+                            );
+                          },
+                        };
+                      }
+                      
                       return {
                         ...baseColumn,
                         width: 250,
-                        renderCell: (params) => {
+                        renderCell: (params: any) => {
                           const value = params.value;
                           
                           // Handle multi-select (Owner column)
                           if (col.validation_rules?.multiple && Array.isArray(value)) {
-                            const options = col.validation_rules?.options || [];
+                            const options = Array.isArray(col.validation_rules?.options) ? col.validation_rules.options : [];
                             return (
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                 {value.map((selectedValue: string) => {
@@ -1116,7 +1181,7 @@ export function SpreadsheetView() {
                           }
                           
                           // Handle single select
-                          const options = col.validation_rules?.options || [];
+                          const options = Array.isArray(col.validation_rules?.options) ? col.validation_rules.options : [];
                           const option = options.find((opt: any) => opt.value === value);
                           return option ? (
                             <Chip
@@ -1128,8 +1193,8 @@ export function SpreadsheetView() {
                             <Typography variant="body2">{value || ''}</Typography>
                           );
                         },
-                        renderEditCell: (params) => {
-                          const options = col.validation_rules?.options || [];
+                        renderEditCell: (params: any) => {
+                          const options = Array.isArray(col.validation_rules?.options) ? col.validation_rules.options : [];
                           const isMultiple = col.validation_rules?.multiple;
                           
                           return (
@@ -1137,7 +1202,7 @@ export function SpreadsheetView() {
                               <Select
                                 multiple={isMultiple}
                                 value={isMultiple ? (params.value || []) : (params.value || '')}
-                                onChange={(e) => {
+                                onChange={(e: React.ChangeEvent<{ value: unknown }>) => {
                                   params.api.setEditCellValue({
                                     id: params.id,
                                     field: params.field,
@@ -1147,8 +1212,8 @@ export function SpreadsheetView() {
                                 displayEmpty
                                 renderValue={isMultiple ? (selected: any) => (
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {(selected as string[]).map((value) => {
-                                      const option = options.find((opt: any) => opt.value === value);
+                                    {Array.isArray(selected) ? selected.map((value) => {
+                                      const option = Array.isArray(options) ? options.find((opt: any) => opt.value === value) : null;
                                       return (
                                         <Chip
                                           key={value}
@@ -1156,7 +1221,7 @@ export function SpreadsheetView() {
                                           size="small"
                                         />
                                       );
-                                    })}
+                                    }) : []}
                                   </Box>
                                 ) : undefined}
                               >
@@ -1198,44 +1263,75 @@ export function SpreadsheetView() {
                       };
                     
                     default:
-                      // Special handling for Company field - use Salesforce Account autocomplete
-                      if (col.name.toLowerCase() === 'company') {
+                      // Special handling for Account/Company field - use Salesforce Account autocomplete
+                      if (col.name.toLowerCase() === 'account' || col.name.toLowerCase() === 'company') {
                         return {
                           ...baseColumn,
                           width: 250,
-                          renderEditCell: (params) => {
+                          renderEditCell: (params: any) => {
+                            const availableOptions = Array.isArray(salesforceAccounts) ? salesforceAccounts : [];
+                            console.log('🔍 Rendering Account Autocomplete for field:', params.field, 'row:', params.id);
+                            console.log('🔍 Available options:', availableOptions.length, 'accounts');
+                            console.log('🔍 First 3 options:', availableOptions.slice(0, 3));
+                            
                             return (
                               <Autocomplete
                                 fullWidth
-                                options={salesforceAccounts}
-                                getOptionLabel={(option) => typeof option === 'string' ? option : option.Name}
-                                value={salesforceAccounts.find(account => account.Name === params.value) || null}
-                                onChange={(event, newValue) => {
+                                options={availableOptions}
+                                getOptionLabel={(option: any) => typeof option === 'string' ? option : option.Name}
+                                onOpen={() => {
+                                  console.log('🔓 Account Autocomplete opened with', availableOptions.length, 'options');
+                                }}
+                                value={Array.isArray(salesforceAccounts) ? salesforceAccounts.find(account => account.Name === params.value) || null : null}
+                                onChange={(event: any, newValue: any) => {
+                                  console.log('🔄 Account selection changed:', newValue);
+                                  const accountName = (typeof newValue === 'string' ? newValue : newValue?.Name) || '';
+                                  const accountType = (typeof newValue === 'object' && newValue?.Type) || '';
+                                  console.log('📝 Account name:', accountName, 'Type:', accountType);
+                                  
+                                  // Update the Account field
                                   params.api.setEditCellValue({
                                     id: params.id,
                                     field: params.field,
-                                    value: (typeof newValue === 'string' ? newValue : newValue?.Name) || '',
+                                    value: accountName,
                                   });
+                                  
+                                  // Also update the Type field if it exists
+                                  if (accountType && accountType !== 'Custom Entry') {
+                                    console.log('🎯 Attempting to auto-fill Type field with:', accountType, 'for account:', accountName);
+                                    try {
+                                      params.api.setEditCellValue({
+                                        id: params.id,
+                                        field: 'type', // Always use lowercase
+                                        value: accountType,
+                                      });
+                                      console.log('✅ Successfully set field: type to:', accountType);
+                                    } catch (error) {
+                                      console.log('❌ Failed to set field: type', error);
+                                    }
+                                  } else {
+                                    console.log('⚠️ No Type to auto-fill, accountType:', accountType);
+                                  }
                                 }}
-                                renderInput={(inputParams) => (
+                                renderInput={(inputParams: any) => (
                                   <TextField
                                     {...inputParams}
                                     variant="outlined"
                                     size="small"
-                                    placeholder="Select or type company name..."
+                                    placeholder="Select or type account name..."
                                     fullWidth
                                   />
                                 )}
                                 freeSolo
                                 clearOnEscape
                                 disableClearable={false}
-                                filterOptions={(options, { inputValue }) => {
-                                  const filtered = options.filter(option =>
+                                filterOptions={(options: any[], { inputValue }: { inputValue: string }) => {
+                                  const filtered = options.filter((option: any) =>
                                     option.Name.toLowerCase().includes(inputValue.toLowerCase())
                                   );
                                   
                                   // If the input doesn't match any existing account, show option to create new
-                                  if (inputValue && !filtered.some(option => 
+                                  if (inputValue && !filtered.some((option: any) =>
                                     option.Name.toLowerCase() === inputValue.toLowerCase()
                                   )) {
                                     filtered.push({
@@ -1247,7 +1343,7 @@ export function SpreadsheetView() {
                                   
                                   return filtered;
                                 }}
-                                renderOption={(props, option) => (
+                                renderOption={(props: any, option: any) => (
                                   <Box component="li" {...props}>
                                     <Box>
                                       <Typography variant="body2">
@@ -1276,7 +1372,7 @@ export function SpreadsheetView() {
                 width: 140,
                 sortable: false,
                 disableColumnMenu: true,
-                renderCell: (params) => {
+                renderCell: (params: any) => {
                   const rowId = String(params.id);
                   const statusResult = getTechnicalWinStatus(rowId);
                   
@@ -1308,7 +1404,7 @@ export function SpreadsheetView() {
                 width: 200,
                 sortable: false,
                 disableColumnMenu: true,
-                renderCell: (params) => {
+                renderCell: (params: any) => {
                   try {
                     if (!params || !params.id || params.id === null || params.id === undefined) {
                       console.warn('Invalid params in renderCell:', params);
@@ -1436,14 +1532,14 @@ export function SpreadsheetView() {
             <TextField
               label="Title"
               value={newTodo.title}
-              onChange={(e) => setNewTodo({ ...newTodo, title: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTodo({ ...newTodo, title: e.target.value })}
               fullWidth
               required
             />
             <TextField
               label="Description"
               value={newTodo.description}
-              onChange={(e) => setNewTodo({ ...newTodo, description: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTodo({ ...newTodo, description: e.target.value })}
               fullWidth
               multiline
               rows={3}

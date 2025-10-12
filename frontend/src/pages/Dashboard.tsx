@@ -1,3 +1,4 @@
+// TEST123456: Build context verification comment
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -97,9 +98,10 @@ export const Dashboard: React.FC = () => {
       icon: <BusinessIcon />,
       tags: ['Enterprise', 'Complex', 'Multi-stakeholder'],
       columns: [
-        { name: 'Company', column_type: 'Text', position: 1, is_required: true },
-        { name: 'Primary Contact', column_type: 'Text', position: 2, is_required: true },
-        { name: 'Deal Value', column_type: 'Number', position: 3 }
+        { name: 'Account', column_type: 'text', position: 1, is_required: true },
+        { name: 'Type', column_type: 'select', position: 2, is_required: false },
+        { name: 'Primary Contact', column_type: 'text', position: 3, is_required: true },
+        { name: 'Deal Value', column_type: 'number', position: 4 }
       ]
     },
     {
@@ -110,36 +112,37 @@ export const Dashboard: React.FC = () => {
       tags: ['SMB', 'Quick', 'Streamlined'],
       columns: [
         // Basic Info
-        { name: 'Company', column_type: 'Text', position: 1, is_required: true },
-        { name: 'Contact', column_type: 'Text', position: 2, is_required: true },
-        { name: 'Email', column_type: 'Text', position: 3 },
-        { name: 'Phone', column_type: 'Text', position: 4 },
+        { name: 'Account', column_type: 'text', position: 1, is_required: true },
+        { name: 'Type', column_type: 'select', position: 2, is_required: false },
+        { name: 'Contact', column_type: 'text', position: 3, is_required: true },
+        { name: 'Email', column_type: 'text', position: 4 },
+        { name: 'Phone', column_type: 'text', position: 5 },
         
         // Deal Basics
-        { name: 'Deal Value', column_type: 'Number', position: 5 },
-        { name: 'Close Date', column_type: 'Date', position: 6 },
-        { name: 'Lead Source', column_type: 'Select', position: 7,
+        { name: 'Deal Value', column_type: 'number', position: 6 },
+        { name: 'Close Date', column_type: 'date', position: 7 },
+        { name: 'Lead Source', column_type: 'select', position: 8,
           validation_rules: { options: ['Inbound', 'Outbound', 'Referral', 'Website', 'Marketing'] }
         },
         
         // Quick SE Process
-        { name: 'Stage', column_type: 'Select', position: 8, is_required: true,
+        { name: 'Stage', column_type: 'select', position: 9, is_required: true,
           validation_rules: {
             options: ['Qualified', 'Discovery Call', 'Demo Scheduled', 'Demo Done', 'Proposal', 'Negotiation', 'Won', 'Lost']
           }
         },
         
         // Key Info
-        { name: 'Use Case', column_type: 'Text', position: 9 },
-        { name: 'Pain Point', column_type: 'Text', position: 10 },
-        { name: 'Current Solution', column_type: 'Text', position: 11 },
-        { name: 'Budget Range', column_type: 'Text', position: 12 },
+        { name: 'Use Case', column_type: 'text', position: 10 },
+        { name: 'Pain Point', column_type: 'text', position: 11 },
+        { name: 'Current Solution', column_type: 'text', position: 12 },
+        { name: 'Budget Range', column_type: 'text', position: 13 },
         
         // Actions
-        { name: 'Last Activity', column_type: 'Text', position: 13 },
-        { name: 'Next Step', column_type: 'Text', position: 14 },
-        { name: 'Next Step Date', column_type: 'Date', position: 15 },
-        { name: 'Notes', column_type: 'Text', position: 16 },
+        { name: 'Last Activity', column_type: 'text', position: 14 },
+        { name: 'Next Step', column_type: 'text', position: 15 },
+        { name: 'Next Step Date', column_type: 'date', position: 16 },
+        { name: 'Notes', column_type: 'text', position: 17 },
       ]
     },
     {
@@ -150,63 +153,63 @@ export const Dashboard: React.FC = () => {
       tags: ['Partner', 'Channel', 'Referral'],
       columns: [
         // Partner Information
-        { name: 'Partner Name', column_type: 'Text', position: 1, is_required: true },
-        { name: 'Partner Contact', column_type: 'Text', position: 2, is_required: true },
-        { name: 'Partner Email', column_type: 'Text', position: 3 },
-        { name: 'Partner Type', column_type: 'Select', position: 4,
+        { name: 'Partner Name', column_type: 'text', position: 1, is_required: true },
+        { name: 'Partner Contact', column_type: 'text', position: 2, is_required: true },
+        { name: 'Partner Email', column_type: 'text', position: 3 },
+        { name: 'Partner Type', column_type: 'select', position: 4,
           validation_rules: { options: ['Reseller', 'Systems Integrator', 'Consultant', 'Technology Partner', 'Referral Partner'] }
         },
         
         // Lead Information  
-        { name: 'End Customer', column_type: 'Text', position: 5, is_required: true },
-        { name: 'Customer Contact', column_type: 'Text', position: 6, is_required: true },
-        { name: 'Customer Email', column_type: 'Text', position: 7 },
-        { name: 'Customer Phone', column_type: 'Text', position: 8 },
+        { name: 'End Customer', column_type: 'text', position: 5, is_required: true },
+        { name: 'Customer Contact', column_type: 'text', position: 6, is_required: true },
+        { name: 'Customer Email', column_type: 'text', position: 7 },
+        { name: 'Customer Phone', column_type: 'text', position: 8 },
         
         // Deal Details
-        { name: 'Deal Value', column_type: 'Number', position: 9 },
-        { name: 'Partner Commission %', column_type: 'Number', position: 10 },
-        { name: 'Expected Close Date', column_type: 'Date', position: 11 },
-        { name: 'Lead Source', column_type: 'Select', position: 12,
+        { name: 'Deal Value', column_type: 'number', position: 9 },
+        { name: 'Partner Commission %', column_type: 'number', position: 10 },
+        { name: 'Expected Close Date', column_type: 'date', position: 11 },
+        { name: 'Lead Source', column_type: 'select', position: 12,
           validation_rules: { options: ['Partner Referral', 'Joint Prospecting', 'Partner Event', 'Marketplace', 'Co-marketing'] }
         },
         
         // Sales Process
-        { name: 'Stage', column_type: 'Select', position: 13, is_required: true,
+        { name: 'Stage', column_type: 'select', position: 13, is_required: true,
           validation_rules: {
             options: ['Partner Qualified', 'Partner Introduction', 'Discovery Call', 'Technical Review', 'Proposal', 'Partner Negotiation', 'Won', 'Lost']
           }
         },
-        { name: 'Partner Involvement', column_type: 'Select', position: 14,
+        { name: 'Partner Involvement', column_type: 'select', position: 14,
           validation_rules: { options: ['Lead Only', 'Joint Selling', 'Fulfillment Partner', 'Technical Support', 'Full Service'] }
         },
         
         // Technical & Business Info
-        { name: 'Use Case', column_type: 'Text', position: 15 },
-        { name: 'Technical Requirements', column_type: 'Text', position: 16 },
-        { name: 'Current Solution', column_type: 'Text', position: 17 },
-        { name: 'Budget Status', column_type: 'Select', position: 18,
+        { name: 'Use Case', column_type: 'text', position: 15 },
+        { name: 'Technical Requirements', column_type: 'text', position: 16 },
+        { name: 'Current Solution', column_type: 'text', position: 17 },
+        { name: 'Budget Status', column_type: 'select', position: 18,
           validation_rules: { options: ['Approved', 'In Process', 'Not Defined', 'Budget Constraint'] }
         },
         
         // Partnership Management
-        { name: 'Partner Agreement', column_type: 'Select', position: 19,
+        { name: 'Partner Agreement', column_type: 'select', position: 19,
           validation_rules: { options: ['Signed', 'In Progress', 'Verbal', 'Not Required'] }
         },
-        { name: 'Joint Value Prop', column_type: 'Text', position: 20 },
-        { name: 'Partner Strengths', column_type: 'Text', position: 21 },
+        { name: 'Joint Value Prop', column_type: 'text', position: 20 },
+        { name: 'Partner Strengths', column_type: 'text', position: 21 },
         
         // Actions & Follow-up
-        { name: 'Last Activity', column_type: 'Text', position: 22 },
-        { name: 'Next Step', column_type: 'Text', position: 23 },
-        { name: 'Next Step Date', column_type: 'Date', position: 24 },
-        { name: 'Partner Next Action', column_type: 'Text', position: 25 },
+        { name: 'Last Activity', column_type: 'text', position: 22 },
+        { name: 'Next Step', column_type: 'text', position: 23 },
+        { name: 'Next Step Date', column_type: 'date', position: 24 },
+        { name: 'Partner Next Action', column_type: 'text', position: 25 },
         
         // Notes & Risk
-        { name: 'Competitive Situation', column_type: 'Text', position: 26 },
-        { name: 'Risk Factors', column_type: 'Text', position: 27 },
-        { name: 'Success Criteria', column_type: 'Text', position: 28 },
-        { name: 'Internal Notes', column_type: 'Text', position: 29 },
+        { name: 'Competitive Situation', column_type: 'text', position: 26 },
+        { name: 'Risk Factors', column_type: 'text', position: 27 },
+        { name: 'Success Criteria', column_type: 'text', position: 28 },
+        { name: 'Internal Notes', column_type: 'text', position: 29 },
       ]
     },
   ];

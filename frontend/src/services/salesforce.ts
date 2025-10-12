@@ -73,7 +73,10 @@ export interface ImportResponse {
 export class SalesforceService {
   // Helper method to get the authentication token
   private getAuthToken(): string | null {
-    return localStorage.getItem('token') || localStorage.getItem('access_token');
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    console.log('🔑 Retrieved token from localStorage:', token ? 'Token found' : 'No token found');
+    console.log('🔍 LocalStorage keys:', Object.keys(localStorage));
+    return token;
   }
 
   // Check if user has connected Salesforce
@@ -186,13 +189,26 @@ export class SalesforceService {
   // Get accounts from Salesforce
   async getAccounts(): Promise<SalesforceAccount[]> {
     const token = this.getAuthToken();
+    console.log('🔑 Auth token for accounts request:', token ? 'Present' : 'Missing');
+    
     const response = await fetch('http://localhost:8004/api/salesforce/accounts', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });
-    return await response.json();
+    
+    console.log('📡 Accounts API response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Accounts API error:', response.status, errorText);
+      throw new Error(`Failed to fetch accounts: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log('📊 Accounts API response data:', data);
+    return data;
   }
 
   // Import accounts to a spreadsheet
