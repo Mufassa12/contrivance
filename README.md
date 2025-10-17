@@ -2,7 +2,13 @@
 
 A modern, production-ready sales pipeline management application designed for sales engineers to track leads, manage customer relationships, and visualize sales data in an interactive spreadsheet interface with real-time collaboration.
 
-## 🚀 Quick Start
+## � What's New - v1.1.0
+
+🎉 **Salesforce Technical Win Sync** - Bidirectional synchronization of the Technical Win field between Contrivance and Salesforce Opportunities. Mark todos as complete to automatically update Salesforce, or toggle the Technical Win column directly for instant sync.
+
+📖 See [RELEASE_NOTES.md](./RELEASE_NOTES.md) for detailed v1.1.0 features and [SALESFORCE_INTEGRATION_GUIDE.md](./SALESFORCE_INTEGRATION_GUIDE.md) for setup instructions.
+
+## �🚀 Quick Start
 
 1. **Prerequisites**
    - Docker and Docker Compose
