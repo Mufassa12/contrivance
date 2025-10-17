@@ -189,6 +189,10 @@ export function SpreadsheetView() {
   // Quarterly filtering state
   const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
   const [filteredRows, setFilteredRows] = useState<GridRowsProp>([]);
+  
+  // Salesforce sync state
+  const [isSyncingSalesforce, setIsSyncingSalesforce] = useState(false);
+  const [salesforceConnectionStatus, setSalesforceConnectionStatus] = useState<boolean>(false);
 
 
   // Function to determine quarter from date
@@ -462,6 +466,139 @@ export function SpreadsheetView() {
     fetchSalesforceAccounts();
     console.log('📞 Called fetchSalesforceAccounts');
   }, []);
+  
+  // Check Salesforce connection status
+  useEffect(() => {
+    const checkConnectionStatus = async () => {
+      try {
+        const status = await salesforceService.getConnectionStatus();
+        setSalesforceConnectionStatus(status.connected);
+      } catch (error) {
+        console.error('Failed to check Salesforce connection status:', error);
+        setSalesforceConnectionStatus(false);
+      }
+    };
+    checkConnectionStatus();
+  }, []);
+
+  // Handler to sync Salesforce opportunities to spreadsheet
+  const handleSyncSalesforceOpportunities = async () => {
+    if (!id || !spreadsheet) return;
+    
+    setIsSyncingSalesforce(true);
+    try {
+      console.log('🔄 Step 1: Syncing Salesforce columns...');
+      
+      // First, sync the columns to ensure all Salesforce fields have corresponding columns
+      const columnsResult = await spreadsheetService.syncSalesforceColumns(id);
+      console.log('✅ Columns synced:', columnsResult);
+      
+      if (columnsResult.added_columns.length > 0) {
+        console.log(`📋 Added ${columnsResult.added_columns.length} new columns:`, 
+          columnsResult.added_columns.map(c => c.name));
+        
+        // Reload spreadsheet to get updated columns
+        const updatedDetails = await spreadsheetService.getSpreadsheet(id);
+        setSpreadsheet({
+          ...spreadsheet,
+          columns: updatedDetails.columns,
+        });
+      }
+      
+      console.log('� Step 2: Syncing Salesforce opportunities data...');
+      const result = await salesforceService.syncOpportunitiesToSpreadsheet(id);
+      console.log('✅ Sync result:', result);
+      
+      // Transform the opportunities data into rows and save them to database
+      if (result.opportunities && result.opportunities.length > 0) {
+        console.log('🔄 Step 3: Saving synced opportunities to database...');
+        const savedRows: any[] = [];
+        
+        for (const [index, opp] of result.opportunities.entries()) {
+          console.log(`🔄 Processing opportunity ${index + 1}/${result.opportunities.length}:`, opp);
+          
+          // Create row data from opportunity fields
+          const rowData: any = {};
+          
+          // Map all opportunity fields to the row, using exact field names from backend
+          Object.keys(opp).forEach(key => {
+            rowData[key] = opp[key];
+          });
+          
+          // Also map to legacy column names for backward compatibility
+          if (opp['Account']) rowData['Account'] = opp['Account'];
+          if (opp['Type']) rowData['Type'] = opp['Type'];
+          if (opp['Owner']) rowData['Primary Contact'] = opp['Owner'];
+          if (opp['Amount'] !== undefined) rowData['Deal Value'] = opp['Amount'];
+          
+          try {
+            // Save row to database
+            const savedRow = await spreadsheetService.createRow(id, { row_data: rowData });
+            console.log(`✅ Saved opportunity ${index + 1} to database:`, savedRow);
+            
+            // Transform to grid row format
+            const gridRow: any = {
+              id: savedRow.id,
+              ...savedRow.row_data,
+            };
+            
+            savedRows.push(gridRow);
+            
+            // 📌 Step 4: Create a todo for this opportunity
+            try {
+              const todoTitle = `Follow up: ${opp['Opportunity Name'] || opp['Account'] || 'Opportunity'}`;
+              const todoDescription = `Salesforce Opportunity - Account: ${opp['Account']}, Stage: ${opp['Stage']}, Amount: $${opp['Amount']}`;
+              
+              const todoRequest = {
+                title: todoTitle,
+                description: todoDescription,
+                priority: 'medium' as const,
+                due_date: opp['Close Date'] ? new Date(opp['Close Date']) : undefined,
+                supporting_artifact: `Salesforce: ${opp['Account']}`,
+                spreadsheet_id: id,
+                row_id: savedRow.id,
+                assigned_to: undefined,
+              };
+              
+              console.log(`📝 Creating todo for opportunity ${index + 1}:`, todoRequest);
+              await todoService.createTodo(todoRequest);
+              console.log(`✅ Created todo for opportunity ${index + 1}`);
+            } catch (todoError) {
+              console.warn(`⚠️ Failed to create todo for opportunity ${index + 1}:`, todoError);
+              // Don't fail the entire sync if todo creation fails
+            }
+          } catch (error) {
+            console.error(`❌ Failed to save opportunity ${index + 1}:`, error);
+          }
+        }
+        
+        // Add the saved rows to existing rows
+        setRows(prevRows => [...prevRows, ...savedRows]);
+        
+        const message = columnsResult.added_columns.length > 0
+          ? `Successfully synced ${result.count} opportunities and added ${columnsResult.added_columns.length} new columns from Salesforce`
+          : `Successfully synced ${result.count} opportunities from Salesforce`;
+        
+        setSnackbar({ 
+          message, 
+          severity: 'success' 
+        });
+      } else {
+        setSnackbar({ 
+          message: 'No opportunities found in Salesforce', 
+          severity: 'success' 
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to sync Salesforce opportunities:', error);
+      setSnackbar({ 
+        message: error instanceof Error ? error.message : 'Failed to sync Salesforce opportunities', 
+        severity: 'error' 
+      });
+    } finally {
+      setIsSyncingSalesforce(false);
+    }
+  };
 
   // Clear row editing state when there are no rows to prevent DataGrid errors
   useEffect(() => {
@@ -576,12 +713,12 @@ export function SpreadsheetView() {
     try {
       const createRequest = {
         title: newTodo.title,
-        description: newTodo.description,
+        description: newTodo.description && newTodo.description.trim() !== '' ? newTodo.description : undefined,
         priority: newTodo.priority.toLowerCase() as 'low' | 'medium' | 'high',
         due_date: newTodo.dueDate ? new Date(newTodo.dueDate) : undefined,
-        supporting_artifact: newTodo.supportingArtifact,
+        supporting_artifact: newTodo.supportingArtifact && newTodo.supportingArtifact.trim() !== '' ? newTodo.supportingArtifact : undefined,
         spreadsheet_id: id,
-        assigned_to: newTodo.assignedTo || undefined,
+        assigned_to: newTodo.assignedTo && newTodo.assignedTo.trim() !== '' ? newTodo.assignedTo : undefined,
       };
 
       console.log('Creating todo:', createRequest);
@@ -665,18 +802,31 @@ export function SpreadsheetView() {
     if (!newTodo.title.trim() || !id) return;
 
     try {
+      // Parse rowId - handle both UUID format and temp IDs (sf-31-1760562777973)
+      let parsedRowId: string | undefined = undefined;
+      try {
+        // If it's a valid UUID, use it
+        if (rowId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          parsedRowId = rowId;
+        } else {
+          console.warn('Row ID is not a valid UUID, will not associate with row:', rowId);
+        }
+      } catch (e) {
+        console.warn('Could not parse row ID:', rowId);
+      }
+
       const createRequest = {
         title: newTodo.title,
-        description: newTodo.description,
+        description: newTodo.description && newTodo.description.trim() !== '' ? newTodo.description : undefined,
         priority: newTodo.priority.toLowerCase() as 'low' | 'medium' | 'high',
         due_date: newTodo.dueDate ? new Date(newTodo.dueDate) : undefined,
-        supporting_artifact: newTodo.supportingArtifact,
+        supporting_artifact: newTodo.supportingArtifact && newTodo.supportingArtifact.trim() !== '' ? newTodo.supportingArtifact : undefined,
         spreadsheet_id: id,
-        row_id: rowId,
-        assigned_to: newTodo.assignedTo || undefined,
+        row_id: parsedRowId,
+        assigned_to: newTodo.assignedTo && newTodo.assignedTo.trim() !== '' ? newTodo.assignedTo : undefined,
       };
 
-      console.log('Creating row todo:', createRequest);
+      console.log('Creating row todo:', createRequest, 'rowId:', rowId, 'parsedRowId:', parsedRowId);
       await todoService.createTodo(createRequest);
       
       // Reload row todos from database
@@ -922,6 +1072,19 @@ export function SpreadsheetView() {
             {spreadsheet.name}
           </Typography>
         </Box>
+        
+        {/* Salesforce Sync Button */}
+        {salesforceConnectionStatus && (
+          <Button 
+            variant="contained"
+            color="primary"
+            onClick={handleSyncSalesforceOpportunities}
+            disabled={isSyncingSalesforce}
+            startIcon={isSyncingSalesforce ? <CircularProgress size={20} /> : null}
+          >
+            {isSyncingSalesforce ? 'Syncing...' : 'Sync Salesforce Opportunities'}
+          </Button>
+        )}
 
       </Box>
 
@@ -1202,7 +1365,7 @@ export function SpreadsheetView() {
                               <Select
                                 multiple={isMultiple}
                                 value={isMultiple ? (params.value || []) : (params.value || '')}
-                                onChange={(e: React.ChangeEvent<{ value: unknown }>) => {
+                                onChange={(e: any) => {
                                   params.api.setEditCellValue({
                                     id: params.id,
                                     field: params.field,

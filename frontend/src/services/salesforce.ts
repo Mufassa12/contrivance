@@ -4,11 +4,19 @@ export interface SalesforceOpportunity {
   Amount?: number;
   StageName: string;
   CloseDate: string;
+  Probability?: number;
+  ExpectedRevenue?: number;
   Account?: {
     Id: string;
     Name: string;
+    Type?: string;
   };
   Owner?: {
+    Id: string;
+    Name: string;
+    Email?: string;
+  };
+  LastModifiedBy?: {
     Id: string;
     Name: string;
     Email?: string;
@@ -244,12 +252,41 @@ export class SalesforceService {
       'Name': 'Name',
       'Amount': 'Amount',
       'Stage': 'StageName',
+      'Probability': 'Probability',
+      'Expected Revenue': 'ExpectedRevenue',
       'Close Date': 'CloseDate',
       'Account': 'Account.Name',
+      'Type': 'Account.Type',
       'Owner': 'Owner.Name',
+      'Last Modified By': 'LastModifiedBy.Name',
       'Created Date': 'CreatedDate',
       'Last Modified': 'LastModifiedDate',
     };
+  }
+
+  // Sync opportunities to a spreadsheet
+  async syncOpportunitiesToSpreadsheet(spreadsheetId: string): Promise<any> {
+    const token = this.getAuthToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    
+    const response = await fetch('http://localhost:8004/api/salesforce/sync/opportunities', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ spreadsheet_id: spreadsheetId }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Failed to sync opportunities: ${response.statusText}`);
+    }
+    
+    return response.json();
   }
 
   // Default field mappings for leads

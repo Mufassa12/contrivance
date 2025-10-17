@@ -105,9 +105,10 @@ impl SalesforceClient {
         let limit_clause = limit.map_or_else(|| "".to_string(), |l| format!(" LIMIT {}", l));
         
         let query = format!(
-            "SELECT Id, Name, Amount, StageName, CloseDate, CreatedDate, LastModifiedDate, 
-             Account.Id, Account.Name, 
-             Owner.Id, Owner.Name, Owner.Email 
+            "SELECT Id, Name, Amount, StageName, CloseDate, Probability, ExpectedRevenue, CreatedDate, LastModifiedDate, 
+             Account.Id, Account.Name, Account.Type,
+             Owner.Id, Owner.Name, Owner.Email,
+             LastModifiedBy.Id, LastModifiedBy.Name, LastModifiedBy.Email
              FROM Opportunity 
              WHERE IsDeleted = false{}",
             limit_clause

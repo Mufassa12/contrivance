@@ -86,6 +86,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/{id}", web::put().to(proxy::contrivance_proxy))
                     .route("/{id}", web::delete().to(proxy::contrivance_proxy))
                     .route("/{id}/columns", web::get().to(proxy::contrivance_proxy))
+                    .route("/{id}/salesforce/columns", web::post().to(proxy::contrivance_proxy))
                     .route("/{id}/rows", web::get().to(proxy::contrivance_proxy))
                     .route("/{id}/rows", web::post().to(proxy::contrivance_proxy))
                     .route("/{spreadsheet_id}/rows/{row_id}", web::put().to(proxy::contrivance_proxy))

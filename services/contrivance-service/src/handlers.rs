@@ -177,6 +177,104 @@ impl ContrivanceHandlers {
         Ok(HttpResponse::Ok().json(ApiResponse::success(columns)))
     }
 
+    /// Add Salesforce columns to spreadsheet
+    pub async fn sync_salesforce_columns(
+        &self,
+        req: HttpRequest,
+        path: web::Path<Uuid>,
+    ) -> Result<HttpResponse, ContrivanceError> {
+        let user = get_user_from_request(&req)?;
+        let spreadsheet_id = path.into_inner();
+
+        // Check access permissions (must be owner or have write access)
+        if !self.repository.can_user_access_spreadsheet(user.id, spreadsheet_id).await? {
+            return Err(ContrivanceError::forbidden("Access denied to this spreadsheet"));
+        }
+
+        // Get existing columns to check which ones we need to add
+        let existing_columns = self.repository
+            .get_spreadsheet_columns(spreadsheet_id)
+            .await?;
+
+        let existing_column_names: std::collections::HashSet<String> = existing_columns
+            .iter()
+            .map(|c| c.name.clone())
+            .collect();
+
+        // Define the Salesforce columns we want to ensure exist
+        let salesforce_column_defs = vec![
+            ("Opportunity Name", "text"),
+            ("Stage", "text"),
+            ("Probability", "number"),
+            ("Expected Revenue", "currency"),
+            ("Close Date", "date"),
+            ("Owner", "text"),
+            ("Last Modified By", "text"),
+            ("Last Modified Date", "date"),
+        ];
+
+        // Filter to only columns that don't already exist
+        let mut columns_to_add = Vec::new();
+        let mut position = existing_columns.len() as i32;
+
+        for (name, col_type) in salesforce_column_defs {
+            if !existing_column_names.contains(name) {
+                let column_type = match col_type {
+                    "text" => common::ColumnType::Text,
+                    "number" => common::ColumnType::Number,
+                    "currency" => common::ColumnType::Currency,
+                    "date" => common::ColumnType::Date,
+                    _ => common::ColumnType::Text,
+                };
+
+                columns_to_add.push(common::CreateColumnRequest {
+                    name: name.to_string(),
+                    column_type,
+                    position,
+                    is_required: Some(false),
+                    default_value: None,
+                    validation_rules: None,
+                    display_options: None,
+                });
+
+                position += 1;
+            }
+        }
+
+        // Add the new columns if any are needed
+        let added_columns = if !columns_to_add.is_empty() {
+            tracing::info!("Adding {} Salesforce columns to spreadsheet {}", 
+                columns_to_add.len(), spreadsheet_id);
+            
+            let new_cols = self.repository
+                .add_columns(spreadsheet_id, columns_to_add)
+                .await?;
+
+            // Notify all connected clients about each new column
+            for column in &new_cols {
+                let message = WebSocketMessage::ColumnCreated {
+                    spreadsheet_id,
+                    column: column.clone(),
+                    created_by: user.id,
+                };
+
+                self.connection_manager
+                    .broadcast_to_spreadsheet(spreadsheet_id, message)
+                    .await;
+            }
+
+            new_cols
+        } else {
+            tracing::info!("All Salesforce columns already exist for spreadsheet {}", spreadsheet_id);
+            Vec::new()
+        };
+
+        Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+            "added_columns": added_columns,
+            "total_columns": existing_columns.len() + added_columns.len(),
+        }))))
+    }
+
     /// Get spreadsheet rows
     pub async fn get_rows(
         &self,
@@ -366,6 +464,14 @@ pub async fn get_columns(
     data: web::Data<ContrivanceHandlers>,
 ) -> Result<HttpResponse, ContrivanceError> {
     data.get_columns(req, path).await
+}
+
+pub async fn sync_salesforce_columns(
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+    data: web::Data<ContrivanceHandlers>,
+) -> Result<HttpResponse, ContrivanceError> {
+    data.sync_salesforce_columns(req, path).await
 }
 
 pub async fn get_rows(

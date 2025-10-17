@@ -105,6 +105,10 @@ async fn main() -> std::io::Result<()> {
                             .route(web::get().to(handlers::get_columns))
                     )
                     .service(
+                        web::resource("/spreadsheets/{id}/salesforce/columns")
+                            .route(web::post().to(handlers::sync_salesforce_columns))
+                    )
+                    .service(
                         web::resource("/spreadsheets/{id}/rows")
                             .route(web::get().to(handlers::get_rows))
                             .route(web::post().to(handlers::create_row))

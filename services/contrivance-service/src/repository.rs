@@ -284,6 +284,72 @@ impl ContrivanceRepository {
         Ok(columns)
     }
 
+    /// Add columns to an existing spreadsheet
+    pub async fn add_columns(
+        &self,
+        spreadsheet_id: Uuid,
+        columns: Vec<common::CreateColumnRequest>,
+    ) -> ContrivanceResult<Vec<SpreadsheetColumn>> {
+        let now = Utc::now();
+        let mut created_columns = Vec::new();
+
+        let mut tx = self.pool.begin().await?;
+
+        // Verify spreadsheet exists
+        let result = sqlx::query("SELECT EXISTS(SELECT 1 FROM spreadsheets WHERE id = $1)")
+            .bind(spreadsheet_id)
+            .fetch_one(&mut *tx)
+            .await?;
+        let exists: bool = result.try_get(0).unwrap_or(false);
+
+        if !exists {
+            return Err(ContrivanceError::not_found("Spreadsheet not found"));
+        }
+
+        // Insert each column
+        for column_request in columns {
+            let column_id = Uuid::new_v4();
+            
+            sqlx::query(
+                r#"
+                INSERT INTO spreadsheet_columns 
+                (id, spreadsheet_id, name, column_type, position, is_required, default_value, validation_rules, display_options, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, '{}'::jsonb), COALESCE($9, '{}'::jsonb), $10, $11)
+                "#
+            )
+            .bind(column_id)
+            .bind(spreadsheet_id)
+            .bind(&column_request.name)
+            .bind(&column_request.column_type)
+            .bind(column_request.position)
+            .bind(column_request.is_required.unwrap_or(false))
+            .bind(&column_request.default_value)
+            .bind(&column_request.validation_rules)
+            .bind(&column_request.display_options)
+            .bind(now)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+
+            // Fetch the created column
+            let column = sqlx::query_as::<_, SpreadsheetColumn>(
+                r#"
+                SELECT id, spreadsheet_id, name, column_type, position, is_required, default_value, validation_rules, display_options, created_at, updated_at
+                FROM spreadsheet_columns
+                WHERE id = $1
+                "#
+            )
+            .bind(column_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            created_columns.push(column);
+        }
+
+        tx.commit().await?;
+        Ok(created_columns)
+    }
+
     /// Get spreadsheet rows
     pub async fn get_spreadsheet_rows(
         &self, 

@@ -335,6 +335,99 @@ pub async fn import_opportunities(
     }))
 }
 
+// New endpoint to sync opportunities to spreadsheet rows
+pub async fn sync_opportunities_to_spreadsheet(
+    pool: web::Data<sqlx::PgPool>,
+    sf_client: web::Data<SalesforceClient>,
+    req: HttpRequest,
+    body: web::Json<serde_json::Value>,
+) -> ActixResult<HttpResponse> {
+    let claims = extract_user_from_token(&req)?;
+    
+    let spreadsheet_id = body.get("spreadsheet_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| actix_web::error::ErrorBadRequest("spreadsheet_id is required"))?;
+    
+    // Get Salesforce connection
+    let mut connection = match database::get_salesforce_connection(&pool, claims.user_id).await {
+        Ok(Some(conn)) => conn,
+        Ok(None) => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "No Salesforce connection found. Please connect to Salesforce first."
+            })));
+        }
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Database error: {}", e)
+            })));
+        }
+    };
+
+    // Create token from connection
+    let mut token = SalesforceToken {
+        access_token: connection.access_token.clone(),
+        refresh_token: connection.refresh_token.clone(),
+        instance_url: connection.instance_url.clone(),
+        token_type: "Bearer".to_string(),
+        expires_in: None,
+        created_at: connection.created_at,
+    };
+
+    // Fetch opportunities from Salesforce
+    let opportunities = match sf_client.query_opportunities(&token, None).await {
+        Ok(opps) => opps,
+        Err(e) => {
+            let error_msg = e.to_string();
+            
+            // Try to refresh token if it's expired
+            match refresh_connection_if_expired(&pool, &sf_client, &mut connection, &error_msg).await {
+                Ok(true) => {
+                    token.access_token = connection.access_token.clone();
+                    token.instance_url = connection.instance_url.clone();
+                    
+                    match sf_client.query_opportunities(&token, None).await {
+                        Ok(opps) => opps,
+                        Err(retry_e) => {
+                            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                                "error": format!("Failed to fetch opportunities: {}", retry_e)
+                            })));
+                        }
+                    }
+                }
+                Ok(false) | Err(_) => {
+                    return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": format!("Failed to fetch opportunities: {}", error_msg)
+                    })));
+                }
+            }
+        }
+    };
+
+    // Transform opportunities into row data
+    let rows: Vec<serde_json::Value> = opportunities.iter().map(|opp| {
+        serde_json::json!({
+            "Opportunity Name": opp.name,
+            "Account": opp.account.as_ref().map(|a| a.name.clone()).unwrap_or_default(),
+            "Type": opp.account.as_ref().and_then(|a| a.account_type.clone()).unwrap_or_default(),
+            "Stage": opp.stage_name,
+            "Amount": opp.amount.unwrap_or(0.0),
+            "Probability": opp.probability.unwrap_or(0.0),
+            "Expected Revenue": opp.expected_revenue.unwrap_or(0.0),
+            "Close Date": opp.close_date,
+            "Owner": opp.owner.as_ref().map(|o| o.name.clone()).unwrap_or_default(),
+            "Last Modified By": opp.last_modified_by.as_ref().map(|u| u.name.clone()).unwrap_or_default(),
+            "Last Modified Date": opp.last_modified_date.clone().unwrap_or_default(),
+        })
+    }).collect();
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "spreadsheet_id": spreadsheet_id,
+        "opportunities": rows,
+        "count": rows.len()
+    })))
+}
+
 pub async fn import_leads(
     pool: web::Data<sqlx::PgPool>,
     sf_client: web::Data<SalesforceClient>,

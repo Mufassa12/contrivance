@@ -50,6 +50,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/import/opportunities", web::post().to(handlers::import_opportunities))
                     .route("/import/leads", web::post().to(handlers::import_leads))
                     .route("/import/accounts", web::post().to(handlers::import_accounts))
+                    .route("/sync/opportunities", web::post().to(handlers::sync_opportunities_to_spreadsheet))
                     .route("/sync/pipeline/{id}", web::post().to(handlers::sync_pipeline))
                     .route("/connection/status", web::get().to(handlers::connection_status))
             )

@@ -36,6 +36,10 @@ export class SpreadsheetService {
     return apiService.get(`/api/spreadsheets/${spreadsheetId}/columns`);
   }
 
+  async syncSalesforceColumns(spreadsheetId: string): Promise<{ added_columns: any[]; total_columns: number }> {
+    return apiService.post(`/api/spreadsheets/${spreadsheetId}/salesforce/columns`, {});
+  }
+
   async getRows(spreadsheetId: string, params?: PaginationParams): Promise<SpreadsheetRow[]> {
     return apiService.get(`/api/spreadsheets/${spreadsheetId}/rows`, params);
   }

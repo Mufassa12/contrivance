@@ -3,6 +3,7 @@ package main
 import (
     "net/http"
     "strconv"
+    "strings"
     "time"
 
     "github.com/gin-gonic/gin"
@@ -23,6 +24,7 @@ type Todo struct {
     SpreadsheetID    string     `json:"spreadsheet_id" db:"spreadsheet_id" binding:"required"`
     RowID            *string    `json:"row_id" db:"row_id"`
     UserID           string     `json:"user_id" db:"user_id"`
+    AssignedTo       *string    `json:"assigned_to" db:"assigned_to"`
 }
 
 // CreateTodoRequest represents the request body for creating todos
@@ -34,6 +36,7 @@ type CreateTodoRequest struct {
     SupportingArtifact string   `json:"supporting_artifact"`
     SpreadsheetID    string     `json:"spreadsheet_id" binding:"required"`
     RowID            *string    `json:"row_id"`
+    AssignedTo       *string    `json:"assigned_to"`
 }
 
 // UpdateTodoRequest represents the request body for updating todos
@@ -44,6 +47,7 @@ type UpdateTodoRequest struct {
     Completed         *bool      `json:"completed"`
     DueDate          *time.Time `json:"due_date"`
     SupportingArtifact *string   `json:"supporting_artifact"`
+    AssignedTo       *string    `json:"assigned_to"`
 }
 
 // TodoStats represents aggregated todo statistics
@@ -106,18 +110,19 @@ func createTodo(c *gin.Context) {
         SpreadsheetID:    req.SpreadsheetID,
         RowID:            req.RowID,
         UserID:           userID.(string),
+        AssignedTo:       req.AssignedTo,
     }
 
     query := `
-        INSERT INTO todos (id, title, description, priority, completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO todos (id, title, description, priority, completed, created_at, updated_at, due_date, supporting_artifact, spreadsheet_id, row_id, user_id, assigned_to)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *`
 
     var createdTodo Todo
     err := db.Get(&createdTodo, query, 
         todo.ID, todo.Title, todo.Description, todo.Priority, todo.Completed,
         todo.CreatedAt, todo.UpdatedAt, todo.DueDate, todo.SupportingArtifact,
-        todo.SpreadsheetID, todo.RowID, todo.UserID)
+        todo.SpreadsheetID, todo.RowID, todo.UserID, todo.AssignedTo)
 
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create todo"})
@@ -289,6 +294,11 @@ func updateTodo(c *gin.Context) {
     if req.SupportingArtifact != nil {
         updates = append(updates, "supporting_artifact = $"+strconv.Itoa(argIndex))
         args = append(args, *req.SupportingArtifact)
+        argIndex++
+    }
+    if req.AssignedTo != nil {
+        updates = append(updates, "assigned_to = $"+strconv.Itoa(argIndex))
+        args = append(args, *req.AssignedTo)
         argIndex++
     }
 

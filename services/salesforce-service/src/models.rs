@@ -14,10 +14,16 @@ pub struct SalesforceOpportunity {
     pub stage_name: String,
     #[serde(rename = "CloseDate")]
     pub close_date: String,
+    #[serde(rename = "Probability")]
+    pub probability: Option<f64>,
+    #[serde(rename = "ExpectedRevenue")]
+    pub expected_revenue: Option<f64>,
     #[serde(rename = "Account")]
     pub account: Option<SalesforceAccount>,
     #[serde(rename = "Owner")]
     pub owner: Option<SalesforceUser>,
+    #[serde(rename = "LastModifiedBy")]
+    pub last_modified_by: Option<SalesforceUser>,
     #[serde(rename = "CreatedDate")]
     pub created_date: Option<String>,
     #[serde(rename = "LastModifiedDate")]
