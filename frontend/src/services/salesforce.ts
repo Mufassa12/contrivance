@@ -316,6 +316,34 @@ export class SalesforceService {
       'Created Date': 'CreatedDate',
     };
   }
+
+  // Update an opportunity field in Salesforce
+  async updateOpportunityField(opportunityId: string, fieldName: string, fieldValue: any): Promise<any> {
+    const token = this.getAuthToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    
+    const response = await fetch(`http://localhost:8004/api/salesforce/update/opportunity/${opportunityId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        field_name: fieldName,
+        value: fieldValue,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Failed to update opportunity: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 }
 
 // Export a singleton instance

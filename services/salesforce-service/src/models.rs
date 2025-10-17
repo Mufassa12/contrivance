@@ -28,6 +28,8 @@ pub struct SalesforceOpportunity {
     pub created_date: Option<String>,
     #[serde(rename = "LastModifiedDate")]
     pub last_modified_date: Option<String>,
+    #[serde(rename = "Technical_Win__c", default)]
+    pub technical_win: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

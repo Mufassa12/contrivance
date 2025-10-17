@@ -106,6 +106,7 @@ impl SalesforceClient {
         
         let query = format!(
             "SELECT Id, Name, Amount, StageName, CloseDate, Probability, ExpectedRevenue, CreatedDate, LastModifiedDate, 
+             Technical_Win__c,
              Account.Id, Account.Name, Account.Type,
              Owner.Id, Owner.Name, Owner.Email,
              LastModifiedBy.Id, LastModifiedBy.Name, LastModifiedBy.Email
@@ -201,5 +202,34 @@ impl SalesforceClient {
             name: user_info["name"].as_str().unwrap_or_default().to_string(),
             email: user_info["email"].as_str().map(|s| s.to_string()),
         })
+    }
+
+    pub async fn update_opportunity(&self, token: &SalesforceToken, opportunity_id: &str, data: &Value) -> Result<()> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "Authorization",
+            format!("Bearer {}", token.access_token).parse()?,
+        );
+        headers.insert("Content-Type", "application/json".parse()?);
+
+        let url = format!(
+            "{}/services/data/v57.0/sobjects/Opportunity/{}",
+            token.instance_url, opportunity_id
+        );
+
+        let response = self.client
+            .patch(&url)
+            .headers(headers)
+            .json(data)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await?;
+            return Err(anyhow!("Failed to update opportunity: {} - {}", status, error_text));
+        }
+
+        Ok(())
     }
 }

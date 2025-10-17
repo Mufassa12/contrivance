@@ -407,6 +407,7 @@ pub async fn sync_opportunities_to_spreadsheet(
     let rows: Vec<serde_json::Value> = opportunities.iter().map(|opp| {
         serde_json::json!({
             "Opportunity Name": opp.name,
+            "Salesforce ID": &opp.id,
             "Account": opp.account.as_ref().map(|a| a.name.clone()).unwrap_or_default(),
             "Type": opp.account.as_ref().and_then(|a| a.account_type.clone()).unwrap_or_default(),
             "Stage": opp.stage_name,
@@ -417,6 +418,7 @@ pub async fn sync_opportunities_to_spreadsheet(
             "Owner": opp.owner.as_ref().map(|o| o.name.clone()).unwrap_or_default(),
             "Last Modified By": opp.last_modified_by.as_ref().map(|u| u.name.clone()).unwrap_or_default(),
             "Last Modified Date": opp.last_modified_date.clone().unwrap_or_default(),
+            "Technical Win": opp.technical_win.unwrap_or(false),
         })
     }).collect();
 
@@ -598,6 +600,72 @@ async fn refresh_connection_if_expired(
         Err(e) => {
             println!("❌ Failed to refresh Salesforce token: {}", e);
             Err(format!("Token refresh failed: {}", e))
+        }
+    }
+}
+
+pub async fn update_opportunity_field(
+    pool: web::Data<sqlx::PgPool>,
+    sf_client: web::Data<SalesforceClient>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<serde_json::Value>,
+) -> ActixResult<HttpResponse> {
+    let claims = extract_user_from_token(&req)?;
+    let opportunity_id = path.into_inner();
+    
+    // Get Salesforce connection
+    let connection = match database::get_salesforce_connection(&pool, claims.user_id).await {
+        Ok(Some(conn)) => conn,
+        Ok(None) => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "No Salesforce connection found. Please connect to Salesforce first."
+            })));
+        }
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Database error: {}", e)
+            })));
+        }
+    };
+
+    // Create token from connection
+    let token = SalesforceToken {
+        access_token: connection.access_token.clone(),
+        refresh_token: connection.refresh_token.clone(),
+        instance_url: connection.instance_url.clone(),
+        token_type: "Bearer".to_string(),
+        expires_in: None,
+        created_at: connection.created_at,
+    };
+
+    // Extract field name and value from request body
+    let field_name = body.get("field_name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| actix_web::error::ErrorBadRequest("field_name is required"))?;
+    
+    let field_value = body.get("value")
+        .ok_or_else(|| actix_web::error::ErrorBadRequest("value is required"))?;
+
+    // Build the update request
+    let update_payload = serde_json::json!({
+        field_name: field_value
+    });
+
+    // Call Salesforce API to update the opportunity
+    match sf_client.update_opportunity(&token, &opportunity_id, &update_payload).await {
+        Ok(_) => {
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "success": true,
+                "opportunity_id": opportunity_id,
+                "message": format!("Successfully updated {} for opportunity", field_name)
+            })))
+        }
+        Err(e) => {
+            println!("❌ Failed to update opportunity {}: {}", opportunity_id, e);
+            Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": format!("Failed to update opportunity: {}", e)
+            })))
         }
     }
 }

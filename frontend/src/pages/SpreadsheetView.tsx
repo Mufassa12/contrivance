@@ -339,6 +339,24 @@ export function SpreadsheetView() {
       } else {
         // Update existing row
         await spreadsheetService.updateRow(spreadsheet.id, newRow.id.toString(), { row_data: rowData });
+        
+        // Check if Technical Win field was updated and sync back to Salesforce
+        const oldRow = rows.find(r => r.id === newRow.id);
+        if (oldRow && oldRow['Technical Win'] !== newRow['Technical Win'] && newRow['Salesforce ID']) {
+          try {
+            console.log(`🔄 Syncing Technical Win status to Salesforce for opportunity ${newRow['Salesforce ID']}`);
+            await salesforceService.updateOpportunityField(
+              newRow['Salesforce ID'],
+              'Technical_Win__c',
+              newRow['Technical Win']
+            );
+            console.log(`✅ Successfully synced Technical Win status to Salesforce`);
+          } catch (sfError) {
+            console.warn(`⚠️ Failed to sync Technical Win to Salesforce:`, sfError);
+            // Don't fail the entire update if Salesforce sync fails
+          }
+        }
+        
         const updatedRow = { ...newRow, isNew: false };
         setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
         setSnackbar({ message: 'Row updated successfully', severity: 'success' });
@@ -908,7 +926,7 @@ export function SpreadsheetView() {
       // Update row status based on todo completion
       if (total > 0) {
         const allCompleted = completed === total;
-        const technicalWinStatus = allCompleted ? 'Technical Win Completed' : 'In Progress';
+        const technicalWinBoolean = allCompleted ? true : false;
         
         try {
           // Find the current row to get its existing data
@@ -917,18 +935,32 @@ export function SpreadsheetView() {
             // Update the row with the new status
             const updatedRowData = {
               ...currentRow,
-              'Technical Win': technicalWinStatus,
-              'Status': technicalWinStatus
+              'Technical Win': technicalWinBoolean
             };
             
-            console.log(`Updating row ${rowId} Technical Win status to: ${technicalWinStatus}`);
+            console.log(`Updating row ${rowId} Technical Win status to: ${technicalWinBoolean}`);
             await spreadsheetService.updateRow(id, rowId, { row_data: updatedRowData });
+            
+            // Sync to Salesforce if this row is linked
+            if (currentRow['Salesforce ID']) {
+              try {
+                console.log(`🔄 Syncing Technical Win (${technicalWinBoolean}) to Salesforce for opportunity ${currentRow['Salesforce ID']}`);
+                await salesforceService.updateOpportunityField(
+                  currentRow['Salesforce ID'],
+                  'Technical_Win__c',
+                  technicalWinBoolean
+                );
+                console.log(`✅ Successfully synced Technical Win to Salesforce`);
+              } catch (sfError) {
+                console.warn(`⚠️ Failed to sync Technical Win to Salesforce:`, sfError);
+              }
+            }
             
             // Update local state
             setRows(prevRows => 
               prevRows.map(row => 
                 row.id === rowId 
-                  ? { ...row, 'Technical Win': technicalWinStatus, 'Status': technicalWinStatus }
+                  ? { ...row, 'Technical Win': technicalWinBoolean }
                   : row
               )
             );

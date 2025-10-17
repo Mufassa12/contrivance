@@ -203,6 +203,7 @@ impl ContrivanceHandlers {
 
         // Define the Salesforce columns we want to ensure exist
         let salesforce_column_defs = vec![
+            ("Salesforce ID", "text"),
             ("Opportunity Name", "text"),
             ("Stage", "text"),
             ("Probability", "number"),
@@ -211,6 +212,7 @@ impl ContrivanceHandlers {
             ("Owner", "text"),
             ("Last Modified By", "text"),
             ("Last Modified Date", "date"),
+            ("Technical Win", "checkbox"),
         ];
 
         // Filter to only columns that don't already exist
@@ -224,6 +226,7 @@ impl ContrivanceHandlers {
                     "number" => common::ColumnType::Number,
                     "currency" => common::ColumnType::Currency,
                     "date" => common::ColumnType::Date,
+                    "checkbox" => common::ColumnType::Text,  // Store as text for checkbox values
                     _ => common::ColumnType::Text,
                 };
 
