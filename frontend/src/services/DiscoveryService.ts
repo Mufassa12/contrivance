@@ -84,7 +84,20 @@ export interface UpdateDiscoveryNoteRequest {
  * Get JWT token from localStorage
  */
 function getAuthToken(): string | null {
-  return localStorage.getItem('authToken');
+  // Try multiple possible token keys (some apps use different names)
+  const token = localStorage.getItem('authToken') 
+    || localStorage.getItem('token')
+    || localStorage.getItem('access_token')
+    || localStorage.getItem('auth_token')
+    || localStorage.getItem('ruggerai-auth-token');
+  
+  if (token) {
+    console.log('✅ [AUTH] Token found in localStorage');
+  } else {
+    console.warn('❌ [AUTH] No token found in localStorage. Available keys:', Object.keys(localStorage));
+  }
+  
+  return token;
 }
 
 /**
@@ -99,6 +112,9 @@ function getHeaders(includeAuth = true): HeadersInit {
     const token = getAuthToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('✅ [AUTH] Authorization header added to request');
+    } else {
+      console.warn('⚠️ [AUTH] No token available for Authorization header');
     }
   }
 
