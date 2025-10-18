@@ -62,7 +62,9 @@ export interface CreateDiscoverySessionRequest {
 
 export interface SaveDiscoveryResponseRequest {
   question_id: string;
-  response_value: string;
+  question_title: string;
+  question_type: string;
+  response_value: any;
   vendor_selections?: Record<string, string[]>;
   sizing_selections?: Record<string, string>;
 }
@@ -153,6 +155,7 @@ export const discoveryService = {
    * Get a discovery session with all responses and notes
    */
   async getSession(sessionId: string): Promise<DiscoverySessionWithData> {
+    console.log('🔗 [API] GET /discovery/sessions/' + sessionId);
     const response = await fetch(
       `${API_BASE_URL}/discovery/sessions/${sessionId}`,
       {
@@ -163,18 +166,23 @@ export const discoveryService = {
 
     if (!response.ok) {
       if (response.status === 404) {
+        console.error('❌ [API] GET /discovery/sessions/' + sessionId + ' - NOT FOUND (404)');
         throw new Error('Session not found');
       }
+      console.error('❌ [API] GET /discovery/sessions/' + sessionId + ' - Status:', response.status);
       await handleError(response);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('✅ [API] GET /discovery/sessions/' + sessionId + ' - Response:', data);
+    return data;
   },
 
   /**
    * List all discovery sessions for an account
    */
   async getSessionsByAccount(accountId: string): Promise<DiscoverySession[]> {
+    console.log('🔗 [API] GET /discovery/accounts/' + accountId);
     const response = await fetch(
       `${API_BASE_URL}/discovery/accounts/${accountId}`,
       {
@@ -184,10 +192,13 @@ export const discoveryService = {
     );
 
     if (!response.ok) {
+      console.error('❌ [API] GET /discovery/accounts/' + accountId + ' - Status:', response.status);
       await handleError(response);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('✅ [API] GET /discovery/accounts/' + accountId + ' - Response:', data);
+    return data;
   },
 
   /**
@@ -219,10 +230,21 @@ export const discoveryService = {
   async saveResponse(
     sessionId: string,
     questionId: string,
-    responseValue: string,
+    questionTitle: string,
+    questionType: string,
+    responseValue: any,
     vendorSelections?: Record<string, string[]>,
     sizingSelections?: Record<string, string>
   ): Promise<DiscoveryResponse> {
+    console.log('🔗 [API] POST /discovery/sessions/' + sessionId + '/responses', {
+      question_id: questionId,
+      question_title: questionTitle,
+      question_type: questionType,
+      response_value: responseValue,
+      vendor_selections: vendorSelections,
+      sizing_selections: sizingSelections,
+    });
+    
     const response = await fetch(
       `${API_BASE_URL}/discovery/sessions/${sessionId}/responses`,
       {
@@ -230,6 +252,8 @@ export const discoveryService = {
         headers: getHeaders(),
         body: JSON.stringify({
           question_id: questionId,
+          question_title: questionTitle,
+          question_type: questionType,
           response_value: responseValue,
           vendor_selections: vendorSelections,
           sizing_selections: sizingSelections,
@@ -238,10 +262,13 @@ export const discoveryService = {
     );
 
     if (!response.ok) {
+      console.error('❌ [API] POST /discovery/sessions/' + sessionId + '/responses - Status:', response.status);
       await handleError(response);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('✅ [API] POST /discovery/sessions/' + sessionId + '/responses - Response:', data);
+    return data;
   },
 
   /**

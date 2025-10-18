@@ -1700,21 +1700,27 @@ export const Discovery: React.FC = () => {
     const loadAccounts = async () => {
       setAccountsLoading(true);
       try {
+        console.log('📱 [DISCOVERY] Loading accounts from Salesforce...');
         const result = await salesforceService.getAccounts();
+        console.log('📱 [DISCOVERY] Accounts loaded:', result);
         if (result && Array.isArray(result)) {
           setAccounts(result);
           
           // If accountId is provided in URL, select that account
           if (accountId) {
+            console.log('🔎 [DISCOVERY] Account ID in URL:', accountId);
             const account = result.find(a => a.Id === accountId);
             if (account) {
+              console.log('✅ [DISCOVERY] Selected account:', account);
               setSelectedAccount(account);
               await loadDiscoveryResponses(account.Id);
+            } else {
+              console.error('❌ [DISCOVERY] Account not found in list:', accountId);
             }
           }
         }
       } catch (err) {
-        console.error('Error loading accounts:', err);
+        console.error('❌ [DISCOVERY] Error loading accounts:', err);
         setError('Failed to load accounts from Salesforce');
       } finally {
         setAccountsLoading(false);
@@ -1737,12 +1743,19 @@ export const Discovery: React.FC = () => {
     setLoading(true);
     try {
       // Try to get existing sessions for this account
+      console.log('🔍 [DISCOVERY] Loading sessions for account:', accId);
       const sessions = await discoveryService.getSessionsByAccount(accId);
+      console.log('📋 [DISCOVERY] Retrieved sessions:', sessions);
       
       if (sessions && sessions.length > 0) {
         // Load the most recent session
         const mostRecentSession = sessions[0];
+        console.log('✅ [DISCOVERY] Found existing session:', mostRecentSession.id);
+        
         const sessionData = await discoveryService.getSession(mostRecentSession.id);
+        console.log('📊 [DISCOVERY] Session data retrieved:', sessionData);
+        console.log('📝 [DISCOVERY] Responses in session:', sessionData.responses);
+        console.log('📌 [DISCOVERY] Notes in session:', sessionData.notes);
         
         setSessionId(mostRecentSession.id);
         setNotes(sessionData.notes || []);
@@ -1750,6 +1763,12 @@ export const Discovery: React.FC = () => {
         // Rebuild responses object from saved responses
         const responseMap: Record<string, any> = {};
         sessionData.responses?.forEach((resp: DiscoveryResponseType) => {
+          console.log('🔄 [DISCOVERY] Processing response:', {
+            question_id: resp.question_id,
+            response_value: resp.response_value,
+            vendor_selections: resp.vendor_selections,
+            sizing_selections: resp.sizing_selections,
+          });
           if (resp.vendor_selections || resp.sizing_selections) {
             responseMap[resp.question_id] = {
               ...resp.vendor_selections,
@@ -1759,16 +1778,18 @@ export const Discovery: React.FC = () => {
             responseMap[resp.question_id] = resp.response_value;
           }
         });
+        console.log('🎯 [DISCOVERY] Final response map:', responseMap);
         setResponses(responseMap);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       } else {
         // No existing session - create a new one for the first vertical
+        console.log('⚠️ [DISCOVERY] No existing sessions found, creating new one');
         await createNewSession(accId);
       }
     } catch (err) {
       // If no session exists or other error, we'll create one on first save
-      console.log('No existing session found, will create on save:', err);
+      console.log('❌ [DISCOVERY] Error loading sessions, will create on save:', err);
       setResponses({});
     } finally {
       setLoading(false);
@@ -1792,22 +1813,30 @@ export const Discovery: React.FC = () => {
   };
 
   const autoSaveResponse = useCallback(
-    async (questionId: string, value: any) => {
+    async (questionId: string, value: any, questionTitle: string = '', questionType: string = 'text') => {
       if (!sessionId) {
-        console.warn('No session ID, cannot auto-save');
+        console.warn('🚫 [AUTO-SAVE] No session ID, cannot auto-save');
         return;
       }
 
       setAutoSaving(true);
       try {
+        console.log('💾 [AUTO-SAVE] Saving response:', { questionId, questionTitle, questionType, value });
+        
         // Determine if this is a vendor_multi or sizing response
-        let responseValue = '';
+        let responseValue: any = '';
         let vendorSelections = undefined;
         let sizingSelections = undefined;
 
         if (typeof value === 'object' && value !== null) {
           // vendor_multi or sizing response
-          vendorSelections = value;
+          if (questionType === 'vendor_multi') {
+            vendorSelections = value;
+          } else if (questionType === 'sizing') {
+            sizingSelections = value;
+          } else {
+            responseValue = value;
+          }
         } else {
           responseValue = String(value);
         }
@@ -1815,13 +1844,16 @@ export const Discovery: React.FC = () => {
         await discoveryService.saveResponse(
           sessionId,
           questionId,
+          questionTitle,
+          questionType,
           responseValue,
           vendorSelections,
           sizingSelections
         );
+        console.log('✅ [AUTO-SAVE] Response saved successfully:', questionId);
         setLastSavedResponse(questionId);
       } catch (err) {
-        console.error('Error auto-saving response:', err);
+        console.error('❌ [AUTO-SAVE] Error auto-saving response:', err);
         setError('Failed to auto-save response');
       } finally {
         setAutoSaving(false);
@@ -1830,7 +1862,8 @@ export const Discovery: React.FC = () => {
     [sessionId]
   );
 
-  const handleResponseChange = (questionId: string, value: any) => {
+  const handleResponseChange = (questionId: string, value: any, questionTitle?: string, questionType?: string) => {
+    console.log('🔄 [RESPONSE-CHANGE] Updated response:', { questionId, value });
     setResponses(prev => ({
       ...prev,
       [questionId]: value,
@@ -1842,7 +1875,7 @@ export const Discovery: React.FC = () => {
       clearTimeout(autoSaveTimerRef.current);
     }
     autoSaveTimerRef.current = setTimeout(() => {
-      autoSaveResponse(questionId, value);
+      autoSaveResponse(questionId, value, questionTitle || '', questionType || 'text');
     }, 1000); // Debounce for 1 second
   };
 
@@ -1858,6 +1891,7 @@ export const Discovery: React.FC = () => {
       
       // Create session if it doesn't exist yet
       if (!currentSessionId) {
+        console.log('📝 [SAVE] Creating new session for account:', selectedAccount.Id);
         const newSession = await discoveryService.createSession(
           selectedAccount.Id,
           'security'
@@ -1867,20 +1901,47 @@ export const Discovery: React.FC = () => {
       }
 
       // Save all responses
+      console.log('💾 [SAVE] Saving all responses, count:', Object.entries(responses).length);
       for (const [questionId, value] of Object.entries(responses)) {
-        let responseValue = '';
+        // Find the question metadata from all categories
+        let questionTitle = questionId;
+        let questionType = 'text';
+        
+        for (const category of Object.values(DISCOVERY_CATEGORIES)) {
+          const questions = (category as any).questions;
+          if (questions && Array.isArray(questions)) {
+            const foundQuestion = questions.find((q: any) => q.id === questionId);
+            if (foundQuestion) {
+              questionTitle = foundQuestion.title;
+              questionType = foundQuestion.type;
+              break;
+            }
+          }
+        }
+
+        let responseValue: any = '';
         let vendorSelections = undefined;
         let sizingSelections = undefined;
 
         if (typeof value === 'object' && value !== null) {
-          vendorSelections = value;
+          if (questionType === 'vendor_multi') {
+            vendorSelections = value;
+          } else if (questionType === 'sizing') {
+            sizingSelections = value;
+          } else {
+            responseValue = value;
+          }
         } else {
           responseValue = String(value);
         }
 
+        console.log('💾 [SAVE] Saving response:', { questionId, questionTitle, questionType });
+
         await discoveryService.saveResponse(
           currentSessionId,
           questionId,
+          questionTitle,
+          questionType,
           responseValue,
           vendorSelections,
           sizingSelections
@@ -1888,12 +1949,13 @@ export const Discovery: React.FC = () => {
       }
 
       // Update session status to completed
+      console.log('✅ [SAVE] Updating session status to completed');
       await discoveryService.updateSessionStatus(currentSessionId, 'completed');
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      console.error('Error saving responses:', err);
+      console.error('❌ [SAVE] Error saving responses:', err);
       setError(err instanceof Error ? err.message : 'Failed to save discovery responses');
     } finally {
       setLoading(false);
@@ -2049,7 +2111,7 @@ export const Discovery: React.FC = () => {
                       } else {
                         newValue.splice(newValue.indexOf(option.value), 1);
                       }
-                      handleResponseChange(question.id, newValue);
+                      handleResponseChange(question.id, newValue, question.title, question.type);
                     }}
                   />
                 }
@@ -2062,7 +2124,7 @@ export const Discovery: React.FC = () => {
         {question.type === 'radio' && (
           <RadioGroup
             value={value}
-            onChange={(e) => handleResponseChange(question.id, e.target.value)}
+            onChange={(e) => handleResponseChange(question.id, e.target.value, question.title, question.type)}
           >
             {question.options.map((option: any) => (
               <FormControlLabel
@@ -2082,7 +2144,7 @@ export const Discovery: React.FC = () => {
             rows={3}
             placeholder={question.placeholder}
             value={value}
-            onChange={(e) => handleResponseChange(question.id, e.target.value)}
+            onChange={(e) => handleResponseChange(question.id, e.target.value, question.title, question.type)}
             variant="outlined"
             size="small"
           />
@@ -2111,7 +2173,7 @@ export const Discovery: React.FC = () => {
                     onChange={(e) => {
                       const newValue = typeof value === 'object' ? { ...value } : {};
                       newValue[category.key] = e.target.value;
-                      handleResponseChange(question.id, newValue);
+                      handleResponseChange(question.id, newValue, question.title, question.type);
                     }}
                     variant="outlined"
                     size="small"
@@ -2139,7 +2201,7 @@ export const Discovery: React.FC = () => {
                             onDelete={() => {
                               const newValue = typeof value === 'object' ? { ...value } : {};
                               newValue[category.key] = categoryValue.filter((v: string) => v !== vendor.value);
-                              handleResponseChange(question.id, newValue);
+                              handleResponseChange(question.id, newValue, question.title, question.type);
                             }}
                             size="small"
                             variant="outlined"
