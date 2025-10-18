@@ -85,22 +85,30 @@ export interface UpdateDiscoveryNoteRequest {
  * The internal app JWT is stored as 'access_token' by api.ts after login
  */
 function getAuthToken(): string | null {
-  // Try multiple possible token keys (some apps use different names)
-  // Note: 'access_token' is the INTERNAL app JWT (highest priority)
-  // It can be confused with Salesforce's access_token, but we check it first
-  const token = localStorage.getItem('access_token')    // ← App JWT from api.ts
-    || localStorage.getItem('authToken')
-    || localStorage.getItem('token')
-    || localStorage.getItem('auth_token')
-    || localStorage.getItem('ruggerai-auth-token');
+  // Debug: Check each key individually
+  const accessToken = localStorage.getItem('access_token');
+  const authToken = localStorage.getItem('authToken');
+  const token = localStorage.getItem('token');
+  const authTokenUnderscore = localStorage.getItem('auth_token');
+  const ruggeraiToken = localStorage.getItem('ruggerai-auth-token');
   
-  if (token) {
-    console.log('✅ [AUTH] Token found in localStorage');
+  console.log('🔐 [AUTH] Token keys in localStorage:');
+  console.log('  - access_token:', accessToken ? `${accessToken.substring(0, 20)}...` : 'NOT FOUND');
+  console.log('  - authToken:', authToken ? `${authToken.substring(0, 20)}...` : 'NOT FOUND');
+  console.log('  - token:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND');
+  console.log('  - auth_token:', authTokenUnderscore ? `${authTokenUnderscore.substring(0, 20)}...` : 'NOT FOUND');
+  console.log('  - ruggerai-auth-token:', ruggeraiToken ? `${ruggeraiToken.substring(0, 20)}...` : 'NOT FOUND');
+  
+  // Try multiple possible token keys (some apps use different names)
+  const finalToken = accessToken || authToken || token || authTokenUnderscore || ruggeraiToken;
+  
+  if (finalToken) {
+    console.log('✅ [AUTH] Final token selected:', `${finalToken.substring(0, 20)}...`);
   } else {
     console.warn('❌ [AUTH] No token found in localStorage. Available keys:', Object.keys(localStorage));
   }
   
-  return token;
+  return finalToken;
 }
 
 /**
