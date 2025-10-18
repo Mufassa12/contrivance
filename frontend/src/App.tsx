@@ -10,6 +10,7 @@ import { Dashboard } from './pages/Dashboard';
 import { SpreadsheetView } from './pages/SpreadsheetView';
 import { Saleboard } from './pages/Saleboard';
 import { Analytics } from './pages/Analytics';
+import { Settings } from './pages/Settings';
 import './App.css';
 
 const theme = createTheme({
@@ -66,6 +67,14 @@ function AuthenticatedApp() {
           state.isAuthenticated ? (
             <Layout>
               <Analytics />
+            </Layout>
+          ) : <Navigate to="/login" replace />
+        } />
+        
+        <Route path="/settings" element={
+          state.isAuthenticated ? (
+            <Layout>
+              <Settings />
             </Layout>
           ) : <Navigate to="/login" replace />
         } />

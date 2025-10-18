@@ -53,7 +53,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import SaveIcon from '@mui/icons-material/Save';
 import { todoService, User } from '../services/todoService';
 import CancelIcon from '@mui/icons-material/Close';
-import AssignmentIcon from '@mui/icons-material/Assignment';
+import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import HighPriorityIcon from '@mui/icons-material/PriorityHigh';
@@ -1622,7 +1622,7 @@ export function SpreadsheetView() {
                       <RadialProgress rowId={rowId} />
                       <Button
                         size="small"
-                        startIcon={<AssignmentIcon />}
+                        startIcon={<EmojiEmotionsIcon />}
                         onClick={() => {
                           try {
                             handleOpenRowTodos(rowId);
@@ -1898,23 +1898,6 @@ export function SpreadsheetView() {
                   }}
                   helperText="Add links to Google Drive docs, websites, or other resources"
                 />
-                <FormControl fullWidth size="small">
-                  <InputLabel>Assign To</InputLabel>
-                  <Select
-                    value={newTodo.assignedTo}
-                    onChange={(e) => setNewTodo({ ...newTodo, assignedTo: e.target.value })}
-                    label="Assign To"
-                  >
-                    <MenuItem value="">
-                      <em>Unassigned</em>
-                    </MenuItem>
-                    {Array.isArray(users) && users.map((user) => (
-                      <MenuItem key={user.id} value={user.id}>
-                        {user.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
                 <FormControl fullWidth size="small">
                   <InputLabel>Assign To</InputLabel>
                   <Select

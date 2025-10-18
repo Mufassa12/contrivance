@@ -165,6 +165,12 @@ export const Sidebar: React.FC = () => {
         },
       ],
     },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: <SettingsIcon />,
+      path: '/settings',
+    },
   ];
 
   const isItemActive = (item: NavigationItem): boolean => {
