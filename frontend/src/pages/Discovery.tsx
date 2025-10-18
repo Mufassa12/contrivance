@@ -1713,7 +1713,7 @@ export const Discovery: React.FC = () => {
             if (account) {
               console.log('✅ [DISCOVERY] Selected account:', account);
               setSelectedAccount(account);
-              await loadDiscoveryResponses(account.Id);
+              await loadDiscoveryResponses(account.Id, account.Name);
             } else {
               console.error('❌ [DISCOVERY] Account not found in list:', accountId);
             }
@@ -1739,11 +1739,11 @@ export const Discovery: React.FC = () => {
     };
   }, []);
 
-  const loadDiscoveryResponses = async (accId: string) => {
+  const loadDiscoveryResponses = async (accId: string, accName: string = 'Unknown Account') => {
     setLoading(true);
     try {
       // Try to get existing sessions for this account
-      console.log('🔍 [DISCOVERY] Loading sessions for account:', accId);
+      console.log('🔍 [DISCOVERY] Loading sessions for account:', accId, accName);
       const sessions = await discoveryService.getSessionsByAccount(accId);
       console.log('📋 [DISCOVERY] Retrieved sessions:', sessions);
       
@@ -1785,7 +1785,7 @@ export const Discovery: React.FC = () => {
       } else {
         // No existing session - create a new one for the first vertical
         console.log('⚠️ [DISCOVERY] No existing sessions found, creating new one');
-        await createNewSession(accId);
+        await createNewSession(accId, accName);
       }
     } catch (err) {
       // If no session exists or other error, we'll create one on first save
@@ -1796,9 +1796,9 @@ export const Discovery: React.FC = () => {
     }
   };
 
-  const createNewSession = async (accId: string, vertical: string = 'security') => {
+  const createNewSession = async (accId: string, accName: string = 'Unknown Account', vertical: string = 'security') => {
     try {
-      const newSession = await discoveryService.createSession(accId, vertical);
+      const newSession = await discoveryService.createSession(accId, accName, vertical);
       setSessionId(newSession.id);
       setResponses({});
       setNotes([]);
@@ -1891,9 +1891,10 @@ export const Discovery: React.FC = () => {
       
       // Create session if it doesn't exist yet
       if (!currentSessionId) {
-        console.log('📝 [SAVE] Creating new session for account:', selectedAccount.Id);
+        console.log('📝 [SAVE] Creating new session for account:', selectedAccount.Id, 'Name:', selectedAccount.Name);
         const newSession = await discoveryService.createSession(
           selectedAccount.Id,
+          selectedAccount.Name || 'Unknown Account',
           'security'
         );
         currentSessionId = newSession.id;
@@ -2256,7 +2257,7 @@ export const Discovery: React.FC = () => {
           onChange={(event, newValue) => {
             setSelectedAccount(newValue);
             if (newValue) {
-              loadDiscoveryResponses(newValue.Id);
+              loadDiscoveryResponses(newValue.Id, newValue.Name);
             }
           }}
           loading={accountsLoading}

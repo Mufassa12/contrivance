@@ -158,17 +158,22 @@ export const discoveryService = {
    */
   async createSession(
     accountId: string,
+    accountName: string,
     vertical: string
   ): Promise<DiscoverySession> {
+    const payload = {
+      account_id: accountId,
+      account_name: accountName,
+      vertical,
+    };
+    console.log('🔗 [API] POST /discovery/sessions with payload:', payload);
+    
     const response = await fetch(
       `${API_BASE_URL}/discovery/sessions`,
       {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({
-          account_id: accountId,
-          vertical,
-        } as CreateDiscoverySessionRequest),
+        body: JSON.stringify(payload),
       }
     );
 
