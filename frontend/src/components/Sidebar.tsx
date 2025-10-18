@@ -31,6 +31,7 @@ import {
   Handshake,
   School,
   Timeline,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
 
@@ -73,6 +74,12 @@ export const Sidebar: React.FC = () => {
       label: 'Command Center',
       icon: <DashboardIcon />,
       path: '/saleboard',
+    },
+    {
+      id: 'discovery',
+      label: 'Discovery',
+      icon: <SearchIcon />,
+      path: '/discovery',
     },
     {
       id: 'pipelines',

@@ -11,6 +11,7 @@ import { SpreadsheetView } from './pages/SpreadsheetView';
 import { Saleboard } from './pages/Saleboard';
 import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
+import { Discovery } from './pages/Discovery';
 import './App.css';
 
 const theme = createTheme({
@@ -75,6 +76,14 @@ function AuthenticatedApp() {
           state.isAuthenticated ? (
             <Layout>
               <Settings />
+            </Layout>
+          ) : <Navigate to="/login" replace />
+        } />
+        
+        <Route path="/discovery" element={
+          state.isAuthenticated ? (
+            <Layout>
+              <Discovery />
             </Layout>
           ) : <Navigate to="/login" replace />
         } />
