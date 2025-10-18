@@ -4,13 +4,16 @@ mod repository;
 mod handlers;
 mod todo_handlers;
 mod middleware;
+mod discovery_models;
+mod discovery_repository;
+mod discovery_handlers;
 
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer, middleware::Logger, HttpResponse, HttpRequest};
 use actix_web_actors::ws;
 use common::{DatabaseBuilder, ApiResponse, JwtService};
 use config::Config;
-use tracing::{info, error};
+use tracing::info;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -60,6 +63,9 @@ async fn main() -> std::io::Result<()> {
         connection_manager_data.clone(),
     ));
 
+    // Initialize discovery repository
+    let discovery_repository = web::Data::new(discovery_repository::DiscoveryRepository::new(database.pool().clone()));
+
     // Start HTTP server
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -74,6 +80,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(contrivance_handlers.clone())
             .app_data(todo_handlers.clone())
+            .app_data(discovery_repository.clone())
             .app_data(web::Data::new(connection_manager.clone()))
             .app_data(jwt_service.clone())
             .app_data(web::JsonConfig::default().error_handler(|err, _req| {
@@ -86,6 +93,13 @@ async fn main() -> std::io::Result<()> {
             }))
             .wrap(cors)
             .wrap(Logger::default())
+            .service(
+                web::scope("/api/public")
+                    .service(
+                        web::resource("/discovery/health")
+                            .route(web::get().to(discovery_handlers::discovery_health_check))
+                    )
+            )
             .service(
                 web::scope("/api")
                     .wrap(middleware::auth::auth_middleware())
@@ -157,6 +171,42 @@ async fn main() -> std::io::Result<()> {
                     .service(
                         web::resource("/users/for-assignment")
                             .route(web::get().to(handlers::get_users_for_assignment))
+                    )
+                    // Discovery routes
+                    .service(
+                        web::resource("/discovery/sessions")
+                            .route(web::post().to(discovery_handlers::create_discovery_session))
+                    )
+                    .service(
+                        web::resource("/discovery/sessions/{session_id}")
+                            .route(web::get().to(discovery_handlers::get_discovery_session))
+                    )
+                    .service(
+                        web::resource("/discovery/accounts/{account_id}")
+                            .route(web::get().to(discovery_handlers::get_account_discovery_sessions))
+                    )
+                    .service(
+                        web::resource("/discovery/sessions/{session_id}/responses")
+                            .route(web::post().to(discovery_handlers::save_discovery_response))
+                            .route(web::get().to(discovery_handlers::get_discovery_responses))
+                    )
+                    .service(
+                        web::resource("/discovery/sessions/{session_id}/notes")
+                            .route(web::post().to(discovery_handlers::add_discovery_note))
+                            .route(web::get().to(discovery_handlers::get_discovery_notes))
+                    )
+                    .service(
+                        web::resource("/discovery/notes/{note_id}")
+                            .route(web::put().to(discovery_handlers::update_discovery_note))
+                            .route(web::delete().to(discovery_handlers::delete_discovery_note))
+                    )
+                    .service(
+                        web::resource("/discovery/sessions/{session_id}/export")
+                            .route(web::post().to(discovery_handlers::export_discovery_session))
+                    )
+                    .service(
+                        web::resource("/discovery/sessions/{session_id}/status")
+                            .route(web::put().to(discovery_handlers::update_discovery_session_status))
                     )
             )
             .route("/ws/spreadsheet/{id}", web::get().to(websocket_handler))
