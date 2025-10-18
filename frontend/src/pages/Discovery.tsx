@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -25,6 +25,12 @@ import {
   Grid,
   Divider,
   MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tooltip,
+  IconButton,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -37,8 +43,17 @@ import {
   Lock as LockIcon,
   BarChart as BarChartIcon,
   Psychology as PsychologyIcon,
+  Download as DownloadIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { salesforceService, type SalesforceAccount } from '../services/salesforce';
+import discoveryService, { 
+  type DiscoverySession, 
+  type DiscoveryNote,
+  type DiscoveryResponse as DiscoveryResponseType 
+} from '../services/DiscoveryService';
 
 // Discovery question categories for different technology verticals
 const DISCOVERY_CATEGORIES = {
@@ -1657,6 +1672,7 @@ export const Discovery: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const accountId = searchParams.get('accountId');
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [selectedAccount, setSelectedAccount] = useState<SalesforceAccount | null>(null);
   const [accounts, setAccounts] = useState<SalesforceAccount[]>([]);
@@ -1666,6 +1682,18 @@ export const Discovery: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [saved, setSaved] = useState(false);
+  
+  // Phase 3: Backend Integration State
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [notes, setNotes] = useState<DiscoveryNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [newNoteType, setNewNoteType] = useState<'general' | 'action_item' | 'risk' | 'opportunity'>('general');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+  const [lastSavedResponse, setLastSavedResponse] = useState<string | null>(null);
 
   // Load Salesforce accounts on mount
   useEffect(() => {
@@ -1696,15 +1724,111 @@ export const Discovery: React.FC = () => {
     loadAccounts();
   }, [accountId]);
 
+  // Cleanup auto-save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
+
   const loadDiscoveryResponses = async (accId: string) => {
-    // TODO: Fetch saved responses from backend
-    // For now, initialize with empty responses
-    setResponses({});
+    setLoading(true);
+    try {
+      // Try to get existing sessions for this account
+      const sessions = await discoveryService.getSessionsByAccount(accId);
+      
+      if (sessions && sessions.length > 0) {
+        // Load the most recent session
+        const mostRecentSession = sessions[0];
+        const sessionData = await discoveryService.getSession(mostRecentSession.id);
+        
+        setSessionId(mostRecentSession.id);
+        setNotes(sessionData.notes || []);
+        
+        // Rebuild responses object from saved responses
+        const responseMap: Record<string, any> = {};
+        sessionData.responses?.forEach((resp: DiscoveryResponseType) => {
+          if (resp.vendor_selections || resp.sizing_selections) {
+            responseMap[resp.question_id] = {
+              ...resp.vendor_selections,
+              ...resp.sizing_selections,
+            };
+          } else {
+            responseMap[resp.question_id] = resp.response_value;
+          }
+        });
+        setResponses(responseMap);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        // No existing session - create a new one for the first vertical
+        await createNewSession(accId);
+      }
+    } catch (err) {
+      // If no session exists or other error, we'll create one on first save
+      console.log('No existing session found, will create on save:', err);
+      setResponses({});
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createNewSession = async (accId: string, vertical: string = 'security') => {
+    try {
+      const newSession = await discoveryService.createSession(accId, vertical);
+      setSessionId(newSession.id);
+      setResponses({});
+      setNotes([]);
+    } catch (err) {
+      console.error('Error creating session:', err);
+      setError('Failed to create discovery session');
+    }
   };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
+
+  const autoSaveResponse = useCallback(
+    async (questionId: string, value: any) => {
+      if (!sessionId) {
+        console.warn('No session ID, cannot auto-save');
+        return;
+      }
+
+      setAutoSaving(true);
+      try {
+        // Determine if this is a vendor_multi or sizing response
+        let responseValue = '';
+        let vendorSelections = undefined;
+        let sizingSelections = undefined;
+
+        if (typeof value === 'object' && value !== null) {
+          // vendor_multi or sizing response
+          vendorSelections = value;
+        } else {
+          responseValue = String(value);
+        }
+
+        await discoveryService.saveResponse(
+          sessionId,
+          questionId,
+          responseValue,
+          vendorSelections,
+          sizingSelections
+        );
+        setLastSavedResponse(questionId);
+      } catch (err) {
+        console.error('Error auto-saving response:', err);
+        setError('Failed to auto-save response');
+      } finally {
+        setAutoSaving(false);
+      }
+    },
+    [sessionId]
+  );
 
   const handleResponseChange = (questionId: string, value: any) => {
     setResponses(prev => ({
@@ -1712,6 +1836,14 @@ export const Discovery: React.FC = () => {
       [questionId]: value,
     }));
     setSaved(false);
+
+    // Auto-save with debouncing
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSaveResponse(questionId, value);
+    }, 1000); // Debounce for 1 second
   };
 
   const handleSaveResponses = async () => {
@@ -1722,13 +1854,132 @@ export const Discovery: React.FC = () => {
 
     setLoading(true);
     try {
-      // TODO: Save responses to backend
-      // await discoveryService.saveResponses(selectedAccount.Id, responses);
+      let currentSessionId = sessionId;
+      
+      // Create session if it doesn't exist yet
+      if (!currentSessionId) {
+        const newSession = await discoveryService.createSession(
+          selectedAccount.Id,
+          'security'
+        );
+        currentSessionId = newSession.id;
+        setSessionId(currentSessionId);
+      }
+
+      // Save all responses
+      for (const [questionId, value] of Object.entries(responses)) {
+        let responseValue = '';
+        let vendorSelections = undefined;
+        let sizingSelections = undefined;
+
+        if (typeof value === 'object' && value !== null) {
+          vendorSelections = value;
+        } else {
+          responseValue = String(value);
+        }
+
+        await discoveryService.saveResponse(
+          currentSessionId,
+          questionId,
+          responseValue,
+          vendorSelections,
+          sizingSelections
+        );
+      }
+
+      // Update session status to completed
+      await discoveryService.updateSessionStatus(currentSessionId, 'completed');
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error('Error saving responses:', err);
-      setError('Failed to save discovery responses');
+      setError(err instanceof Error ? err.message : 'Failed to save discovery responses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!sessionId || !newNoteText.trim()) {
+      return;
+    }
+
+    setNotesLoading(true);
+    try {
+      const note = await discoveryService.addNote(
+        sessionId,
+        newNoteText,
+        newNoteType
+      );
+      setNotes([...notes, note]);
+      setNewNoteText('');
+      setNewNoteType('general');
+      setNewNoteOpen(false);
+    } catch (err) {
+      console.error('Error adding note:', err);
+      setError('Failed to add note');
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  const handleUpdateNote = async (noteId: string) => {
+    if (!editingNoteText.trim()) {
+      return;
+    }
+
+    setNotesLoading(true);
+    try {
+      const updatedNote = await discoveryService.updateNote(
+        noteId,
+        editingNoteText,
+        'general'
+      );
+      setNotes(notes.map(n => n.id === noteId ? updatedNote : n));
+      setEditingNoteId(null);
+      setEditingNoteText('');
+    } catch (err) {
+      console.error('Error updating note:', err);
+      setError('Failed to update note');
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    setNotesLoading(true);
+    try {
+      await discoveryService.deleteNote(noteId);
+      setNotes(notes.filter(n => n.id !== noteId));
+    } catch (err) {
+      console.error('Error deleting note:', err);
+      setError('Failed to delete note');
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  const handleExportSession = async (format: 'json' | 'csv') => {
+    if (!sessionId) {
+      setError('No session to export');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const blob = await discoveryService.exportSession(sessionId, format);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `discovery-export-${new Date().toISOString().split('T')[0]}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exporting session:', err);
+      setError('Failed to export session');
     } finally {
       setLoading(false);
     }
@@ -2033,7 +2284,7 @@ export const Discovery: React.FC = () => {
           ))}
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, mt: 4, justifyContent: 'flex-end' }}>
+          <Box sx={{ display: 'flex', gap: 2, mt: 4, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <Button
               variant="outlined"
               onClick={() => setResponses({})}
@@ -2041,6 +2292,30 @@ export const Discovery: React.FC = () => {
             >
               Clear Responses
             </Button>
+            {sessionId && (
+              <>
+                <Tooltip title="Export session data as JSON">
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={() => handleExportSession('json')}
+                    disabled={loading}
+                  >
+                    Export JSON
+                  </Button>
+                </Tooltip>
+                <Tooltip title="Export session data as CSV">
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={() => handleExportSession('csv')}
+                    disabled={loading}
+                  >
+                    Export CSV
+                  </Button>
+                </Tooltip>
+              </>
+            )}
             <Button
               variant="contained"
               startIcon={<SaveIcon />}
@@ -2051,6 +2326,153 @@ export const Discovery: React.FC = () => {
               Save Discovery Responses
             </Button>
           </Box>
+
+          {/* Notes Section */}
+          {sessionId && (
+            <Paper sx={{ p: 3, mt: 4, backgroundColor: '#fafafa' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6">📝 Sales Engineer Notes</Typography>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={() => setNewNoteOpen(true)}
+                >
+                  Add Note
+                </Button>
+              </Box>
+
+              {notes.length === 0 ? (
+                <Typography color="textSecondary">No notes yet. Add one to get started!</Typography>
+              ) : (
+                <Stack spacing={2}>
+                  {notes.map((note) => (
+                    <Card key={note.id} variant="outlined">
+                      {editingNoteId === note.id ? (
+                        <CardContent>
+                          <TextField
+                            fullWidth
+                            multiline
+                            rows={2}
+                            value={editingNoteText}
+                            onChange={(e) => setEditingNoteText(e.target.value)}
+                            variant="outlined"
+                            size="small"
+                            sx={{ mb: 1 }}
+                          />
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                setEditingNoteId(null);
+                                setEditingNoteText('');
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={() => handleUpdateNote(note.id)}
+                              disabled={notesLoading}
+                            >
+                              Save
+                            </Button>
+                          </Box>
+                        </CardContent>
+                      ) : (
+                        <CardContent>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Chip
+                                label={note.note_type}
+                                size="small"
+                                color={
+                                  note.note_type === 'risk'
+                                    ? 'error'
+                                    : note.note_type === 'opportunity'
+                                    ? 'success'
+                                    : 'default'
+                                }
+                                variant="outlined"
+                                sx={{ mb: 1, mr: 1 }}
+                              />
+                              <Typography variant="body2">{note.note_text}</Typography>
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                sx={{ display: 'block', mt: 1 }}
+                              >
+                                {new Date(note.created_at).toLocaleString()}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  setEditingNoteId(note.id);
+                                  setEditingNoteText(note.note_text);
+                                }}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteNote(note.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))}
+                </Stack>
+              )}
+
+              {/* Add Note Dialog */}
+              <Dialog open={newNoteOpen} onClose={() => setNewNoteOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Add Sales Engineer Note</DialogTitle>
+                <DialogContent>
+                  <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Note Type"
+                      value={newNoteType}
+                      onChange={(e) => setNewNoteType(e.target.value as any)}
+                      size="small"
+                    >
+                      <MenuItem value="general">General Note</MenuItem>
+                      <MenuItem value="action_item">Action Item</MenuItem>
+                      <MenuItem value="risk">Risk</MenuItem>
+                      <MenuItem value="opportunity">Opportunity</MenuItem>
+                    </TextField>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={4}
+                      label="Note"
+                      placeholder="Enter your observation, follow-up item, or note..."
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      variant="outlined"
+                    />
+                  </Box>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={() => setNewNoteOpen(false)}>Cancel</Button>
+                  <Button
+                    variant="contained"
+                    onClick={handleAddNote}
+                    disabled={notesLoading || !newNoteText.trim()}
+                  >
+                    Add Note
+                  </Button>
+                </DialogActions>
+              </Dialog>
+            </Paper>
+          )}
         </Paper>
       ) : (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
