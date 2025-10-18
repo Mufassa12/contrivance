@@ -24,6 +24,7 @@ import {
   Stack,
   Grid,
   Divider,
+  MenuItem,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -831,44 +832,32 @@ export const Discovery: React.FC = () => {
         )}
 
         {question.type === 'vendor_multi' && (
-          <Stack spacing={3}>
+          <Stack spacing={2}>
             {question.categories.map((category: any) => (
               <Box key={category.key}>
-                <Typography
-                  variant="subtitle2"
-                  sx={{
-                    fontWeight: 600,
-                    mb: 2,
-                    color: '#1976d2',
-                    display: 'flex',
-                    alignItems: 'center',
+                <TextField
+                  select
+                  fullWidth
+                  label={category.name}
+                  value={value[category.key] || ''}
+                  onChange={(e) => {
+                    const newValue = typeof value === 'object' ? { ...value } : {};
+                    newValue[category.key] = e.target.value;
+                    handleResponseChange(question.id, newValue);
                   }}
+                  variant="outlined"
+                  size="small"
+                  helperText={`Select the technology used for ${category.name.toLowerCase()}`}
                 >
-                  📦 {category.name}
-                </Typography>
-                <FormGroup sx={{ pl: 2 }}>
+                  <MenuItem value="">
+                    <em>-- Select technology --</em>
+                  </MenuItem>
                   {category.vendors.map((vendor: any) => (
-                    <FormControlLabel
-                      key={vendor.value}
-                      control={
-                        <Checkbox
-                          checked={(Array.isArray(value) ? value : []).includes(vendor.value)}
-                          onChange={(e) => {
-                            const newValue = Array.isArray(value) ? [...value] : [];
-                            if (e.target.checked) {
-                              newValue.push(vendor.value);
-                            } else {
-                              newValue.splice(newValue.indexOf(vendor.value), 1);
-                            }
-                            handleResponseChange(question.id, newValue);
-                          }}
-                          size="small"
-                        />
-                      }
-                      label={<Typography variant="body2">{vendor.label}</Typography>}
-                    />
+                    <MenuItem key={vendor.value} value={vendor.value}>
+                      {vendor.label}
+                    </MenuItem>
                   ))}
-                </FormGroup>
+                </TextField>
               </Box>
             ))}
           </Stack>
