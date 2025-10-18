@@ -82,12 +82,15 @@ export interface UpdateDiscoveryNoteRequest {
 
 /**
  * Get JWT token from localStorage
+ * The internal app JWT is stored as 'access_token' by api.ts after login
  */
 function getAuthToken(): string | null {
   // Try multiple possible token keys (some apps use different names)
-  const token = localStorage.getItem('authToken') 
+  // Note: 'access_token' is the INTERNAL app JWT (highest priority)
+  // It can be confused with Salesforce's access_token, but we check it first
+  const token = localStorage.getItem('access_token')    // ← App JWT from api.ts
+    || localStorage.getItem('authToken')
     || localStorage.getItem('token')
-    || localStorage.getItem('access_token')
     || localStorage.getItem('auth_token')
     || localStorage.getItem('ruggerai-auth-token');
   
@@ -113,6 +116,7 @@ function getHeaders(includeAuth = true): HeadersInit {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
       console.log('✅ [AUTH] Authorization header added to request');
+      console.log('🔑 [AUTH] Token starts with:', token.substring(0, 20) + '...');
     } else {
       console.warn('⚠️ [AUTH] No token available for Authorization header');
     }
