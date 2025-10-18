@@ -832,34 +832,68 @@ export const Discovery: React.FC = () => {
         )}
 
         {question.type === 'vendor_multi' && (
-          <Stack spacing={2}>
-            {question.categories.map((category: any) => (
-              <Box key={category.key}>
-                <TextField
-                  select
-                  fullWidth
-                  label={category.name}
-                  value={value[category.key] || ''}
-                  onChange={(e) => {
-                    const newValue = typeof value === 'object' ? { ...value } : {};
-                    newValue[category.key] = e.target.value;
-                    handleResponseChange(question.id, newValue);
-                  }}
-                  variant="outlined"
-                  size="small"
-                  helperText={`Select the technology used for ${category.name.toLowerCase()}`}
-                >
-                  <MenuItem value="">
-                    <em>-- Select technology --</em>
-                  </MenuItem>
-                  {category.vendors.map((vendor: any) => (
-                    <MenuItem key={vendor.value} value={vendor.value}>
-                      {vendor.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Box>
-            ))}
+          <Stack spacing={3}>
+            {question.categories.map((category: any) => {
+              const categoryValue = Array.isArray(value[category.key]) ? value[category.key] : [];
+              return (
+                <Box key={category.key}>
+                  <TextField
+                    select
+                    SelectProps={{
+                      multiple: true,
+                      renderValue: (selected: any) => {
+                        const selectedLabels = category.vendors
+                          .filter((v: any) => selected.includes(v.value))
+                          .map((v: any) => v.label);
+                        return selectedLabels.join(', ');
+                      },
+                    }}
+                    fullWidth
+                    label={category.name}
+                    value={categoryValue}
+                    onChange={(e) => {
+                      const newValue = typeof value === 'object' ? { ...value } : {};
+                      newValue[category.key] = e.target.value;
+                      handleResponseChange(question.id, newValue);
+                    }}
+                    variant="outlined"
+                    size="small"
+                    helperText={`Select one or more technologies for ${category.name.toLowerCase()}`}
+                  >
+                    {category.vendors.map((vendor: any) => (
+                      <MenuItem key={vendor.value} value={vendor.value}>
+                        <Checkbox
+                          checked={categoryValue.includes(vendor.value)}
+                          size="small"
+                          sx={{ mr: 1 }}
+                        />
+                        {vendor.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  {categoryValue.length > 0 && (
+                    <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {category.vendors
+                        .filter((v: any) => categoryValue.includes(v.value))
+                        .map((vendor: any) => (
+                          <Chip
+                            key={vendor.value}
+                            label={vendor.label}
+                            onDelete={() => {
+                              const newValue = typeof value === 'object' ? { ...value } : {};
+                              newValue[category.key] = categoryValue.filter((v: string) => v !== vendor.value);
+                              handleResponseChange(question.id, newValue);
+                            }}
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                          />
+                        ))}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
           </Stack>
         )}
       </Box>
