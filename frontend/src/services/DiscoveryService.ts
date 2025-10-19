@@ -81,6 +81,25 @@ export interface UpdateDiscoveryNoteRequest {
 }
 
 /**
+ * Decode JWT without validation (for debugging)
+ */
+function decodeJWTPayload(token: string): any {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.error('❌ [JWT] Invalid token format - expected 3 parts, got', parts.length);
+      return null;
+    }
+    
+    const payload = JSON.parse(atob(parts[1]));
+    return payload;
+  } catch (e) {
+    console.error('❌ [JWT] Failed to decode token:', e);
+    return null;
+  }
+}
+
+/**
  * Get JWT token from localStorage
  * The internal app JWT is stored as 'access_token' by api.ts after login
  */
@@ -104,6 +123,26 @@ function getAuthToken(): string | null {
   
   if (finalToken) {
     console.log('✅ [AUTH] Final token selected:', `${finalToken.substring(0, 20)}...`);
+    
+    // DEBUG: Decode the JWT to see what's inside
+    const payload = decodeJWTPayload(finalToken);
+    if (payload) {
+      console.log('📋 [JWT] Token payload claims:', {
+        sub: payload.sub ? '✅ Present (user ID)' : '❌ Missing',
+        jti: payload.jti ? '✅ Present (session ID)' : '❌ Missing',
+        role: payload.role ? '✅ Present' : '❌ Missing',
+        iat: payload.iat ? `✅ Present (issued at: ${new Date(payload.iat * 1000).toISOString()})` : '❌ Missing',
+        exp: payload.exp ? `✅ Present (expires at: ${new Date(payload.exp * 1000).toISOString()})` : '❌ Missing',
+      });
+      
+      // Check if this looks like our JWT format
+      if (payload.sub && payload.jti && payload.role && payload.iat && payload.exp) {
+        console.log('✅ [JWT] Token looks valid - has all expected claims for our JWT');
+      } else {
+        console.warn('⚠️  [JWT] Token missing some expected claims');
+        console.log('📋 [JWT] Full payload:', payload);
+      }
+    }
   } else {
     console.warn('❌ [AUTH] No token found in localStorage. Available keys:', Object.keys(localStorage));
   }
@@ -122,9 +161,12 @@ function getHeaders(includeAuth = true): HeadersInit {
   if (includeAuth) {
     const token = getAuthToken();
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      const authHeader = `Bearer ${token}`;
+      headers['Authorization'] = authHeader;
       console.log('✅ [AUTH] Authorization header added to request');
       console.log('🔑 [AUTH] Token starts with:', token.substring(0, 20) + '...');
+      console.log('🔐 [AUTH] Full Authorization header:', authHeader.substring(0, 50) + '...');
+      console.log('📏 [AUTH] Token length:', token.length);
     } else {
       console.warn('⚠️ [AUTH] No token available for Authorization header');
     }

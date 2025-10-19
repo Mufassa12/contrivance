@@ -1,6 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse, HttpMessage};
 use serde_json::json;
 use uuid::Uuid;
+use tracing::{info, error};
 use crate::discovery_models::*;
 use crate::discovery_repository::DiscoveryRepository;
 
@@ -10,10 +11,17 @@ pub async fn create_discovery_session(
     body: web::Json<CreateDiscoverySessionRequest>,
     repo: web::Data<DiscoveryRepository>,
 ) -> HttpResponse {
+    info!("🔍 [DISCOVERY CREATE] ============ HANDLER CALLED ============");
     // Extract user_id from request (should be set by auth middleware)
     let user_id = match req.extensions().get::<Uuid>() {
-        Some(id) => *id,
-        None => return HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"})),
+        Some(id) => {
+            info!("🔍 [DISCOVERY CREATE] ✅ Found user_id in extensions: {}", id);
+            *id
+        }
+        None => {
+            error!("🔍 [DISCOVERY CREATE] ❌ User ID not found in extensions");
+            return HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"}));
+        }
     };
 
     match repo
@@ -55,15 +63,23 @@ pub async fn get_account_discovery_sessions(
 ) -> HttpResponse {
     let account_id = path.into_inner();
 
+    info!("🔍 [DISCOVERY] Handler called for account: {}", account_id);
+
     let user_id = match req.extensions().get::<Uuid>() {
-        Some(id) => *id,
-        None => return HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"})),
+        Some(id) => {
+            info!("✅ [DISCOVERY] Found user_id in extensions: {}", id);
+            *id
+        }
+        None => {
+            error!("❌ [DISCOVERY] User ID not found in extensions");
+            return HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"}));
+        }
     };
 
     match repo.get_sessions_by_account(&account_id, user_id).await {
         Ok(sessions) => HttpResponse::Ok().json(sessions),
         Err(e) => {
-            eprintln!("Error fetching sessions: {}", e);
+            error!("Error fetching sessions: {}", e);
             HttpResponse::InternalServerError()
                 .json(json!({"error": "Failed to fetch sessions"}))
         }

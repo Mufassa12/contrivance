@@ -14,6 +14,7 @@ impl AuthMiddleware {
         credentials: BearerAuth,
     ) -> Ready<Result<ServiceRequest, (Error, ServiceRequest)>> {
         let token = credentials.token();
+        info!("🔐 [AUTH] ============ VALIDATOR CALLED ============");
         info!("🔐 [AUTH] Validating token: {}...", &token[..20.min(token.len())]);
         
         let jwt_service = match req.app_data::<web::Data<JwtService>>() {
@@ -45,8 +46,15 @@ impl AuthMiddleware {
                             last_login: None,
                         };
                         
+                        // Insert into extensions
+                        info!("🔐 [AUTH] About to insert user_id {} into extensions", user_id);
+                        req.extensions_mut().insert(user_id);
+                        info!("🔐 [AUTH] ✅ Inserted Uuid into extensions");
                         req.extensions_mut().insert(user);
+                        info!("🔐 [AUTH] ✅ Inserted User into extensions");
                         req.extensions_mut().insert(claims);
+                        info!("🔐 [AUTH] ✅ Inserted Claims into extensions - returning Ok(req)");
+                        info!("🔐 [AUTH] ============ VALIDATOR COMPLETE - REQUEST OK ============");
                         ready(Ok(req))
                     }
                     Err(e) => {
