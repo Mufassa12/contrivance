@@ -22,6 +22,7 @@ export interface DiscoveryResponse {
   id: string;
   session_id: string;
   question_id: string;
+  question_type?: string;
   response_value: string;
   vendor_selections?: Record<string, string[]>;
   sizing_selections?: Record<string, string>;

@@ -65,7 +65,7 @@ const DISCOVERY_CATEGORIES = {
         id: 'security_framework',
         title: 'Security Framework',
         description: 'What security frameworks do you currently implement?',
-        type: 'checkbox',
+        type: 'multi_select',
         options: [
           { label: 'ISO 27001', value: 'iso_27001' },
           { label: 'SOC 2 Type II', value: 'soc2_typeii' },
@@ -1769,12 +1769,14 @@ export const Discovery: React.FC = () => {
             vendor_selections: resp.vendor_selections,
             sizing_selections: resp.sizing_selections,
           });
-          if (resp.vendor_selections || resp.sizing_selections) {
+          // For vendor_multi types, merge vendor and sizing selections
+          if (resp.question_type === 'vendor_multi' && (resp.vendor_selections || resp.sizing_selections)) {
             responseMap[resp.question_id] = {
               ...resp.vendor_selections,
               ...resp.sizing_selections,
             };
           } else {
+            // For all other types (checkbox, radio, multi_select, text), use response_value
             responseMap[resp.question_id] = resp.response_value;
           }
         });
@@ -2136,6 +2138,60 @@ export const Discovery: React.FC = () => {
               />
             ))}
           </RadioGroup>
+        )}
+
+        {question.type === 'multi_select' && (
+          <Box>
+            <TextField
+              select
+              SelectProps={{
+                multiple: true,
+                renderValue: (selected: any) => {
+                  const selectedLabels = question.options
+                    .filter((o: any) => selected.includes(o.value))
+                    .map((o: any) => o.label);
+                  return selectedLabels.join(', ');
+                },
+              }}
+              fullWidth
+              label={question.title}
+              value={Array.isArray(value) ? value : []}
+              onChange={(e) => handleResponseChange(question.id, e.target.value, question.title, question.type)}
+              variant="outlined"
+              size="small"
+              helperText="Select one or more options"
+            >
+              {question.options.map((option: any) => (
+                <MenuItem key={option.value} value={option.value}>
+                  <Checkbox
+                    checked={(Array.isArray(value) ? value : []).includes(option.value)}
+                    size="small"
+                    sx={{ mr: 1 }}
+                  />
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            {Array.isArray(value) && value.length > 0 && (
+              <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {question.options
+                  .filter((o: any) => value.includes(o.value))
+                  .map((option: any) => (
+                    <Chip
+                      key={option.value}
+                      label={option.label}
+                      onDelete={() => {
+                        const newValue = value.filter((v: string) => v !== option.value);
+                        handleResponseChange(question.id, newValue, question.title, question.type);
+                      }}
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                    />
+                  ))}
+              </Box>
+            )}
+          </Box>
         )}
 
         {question.type === 'text' && (
