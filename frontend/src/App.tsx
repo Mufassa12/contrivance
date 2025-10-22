@@ -12,6 +12,7 @@ import { Saleboard } from './pages/Saleboard';
 import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
 import { Discovery } from './pages/Discovery';
+import { DiscoveryAnalytics } from './pages/DiscoveryAnalytics';
 import './App.css';
 
 const theme = createTheme({
@@ -84,6 +85,14 @@ function AuthenticatedApp() {
           state.isAuthenticated ? (
             <Layout>
               <Discovery />
+            </Layout>
+          ) : <Navigate to="/login" replace />
+        } />
+        
+        <Route path="/discovery-analytics" element={
+          state.isAuthenticated ? (
+            <Layout>
+              <DiscoveryAnalytics />
             </Layout>
           ) : <Navigate to="/login" replace />
         } />

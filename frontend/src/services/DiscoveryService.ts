@@ -11,8 +11,10 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8003/api
 export interface DiscoverySession {
   id: string;
   account_id: string;
+  account_name?: string;
   vertical: string;
   status: 'draft' | 'in_progress' | 'completed' | 'exported';
+  started_at: string;
   created_at: string;
   updated_at: string;
   completed_at?: string;
@@ -22,10 +24,12 @@ export interface DiscoveryResponse {
   id: string;
   session_id: string;
   question_id: string;
+  question_title?: string;
   question_type?: string;
   response_value: string;
   vendor_selections?: Record<string, string[]>;
   sizing_selections?: Record<string, string>;
+  answered_at?: string;
   created_at: string;
   updated_at: string;
 }

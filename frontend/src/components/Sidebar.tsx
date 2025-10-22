@@ -134,6 +134,12 @@ export const Sidebar: React.FC = () => {
           path: '/analytics',
         },
         {
+          id: 'discovery-findings',
+          label: 'Discovery Findings',
+          icon: <AssessmentIcon />,
+          path: '/discovery-analytics',
+        },
+        {
           id: 'performance',
           label: 'Performance Metrics',
           icon: <AssessmentIcon />,
