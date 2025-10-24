@@ -25,16 +25,21 @@ import {
   AccordionSummary,
   AccordionDetails,
   Stack,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   ExpandMore as ExpandMoreIcon,
   Assessment as AssessmentIcon,
+  Chat as ChatIcon,
 } from '@mui/icons-material';
 import { salesforceService, type SalesforceAccount } from '../services/salesforce';
 import discoveryService, { type DiscoverySession, type DiscoveryNote,
 type DiscoveryResponse as DiscoveryResponseType } from '../services/DiscoveryService';
 import { DiscoverySunburst } from '../components/DiscoverySunburst';
+import { DiscoveryChat } from '../components/DiscoveryChat';
+import { DiscoveryInsight } from '../services/GrokService';
 
 export function DiscoveryAnalytics() {
   const navigate = useNavigate();
@@ -46,6 +51,9 @@ export function DiscoveryAnalytics() {
   const [findings, setFindings] = useState<DiscoveryResponseType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tabValue, setTabValue] = useState(0);
+  const [selectedQuestionForChat, setSelectedQuestionForChat] = useState<string>('');
+  const [selectedCategoryForChat, setSelectedCategoryForChat] = useState<string>('');
 
   // Load accounts on mount
   useEffect(() => {
@@ -128,6 +136,26 @@ export function DiscoveryAnalytics() {
       return JSON.stringify(value);
     }
     return value || '—';
+  };
+
+  const handleInsightSelected = async (insight: DiscoveryInsight) => {
+    try {
+      if (selectedSession) {
+        // Create a note with the insight from Grok
+        const noteContent = `[${insight.category}] ${insight.technology} (${insight.vendor}) - ${insight.reasoning} [Confidence: ${insight.confidence}]`;
+        await discoveryService.addNote(
+          selectedSession.id,
+          noteContent,
+          'opportunity'
+        );
+
+        setError(null);
+        // Show success - could add a toast notification here
+      }
+    } catch (err) {
+      console.error('Error adding insight:', err);
+      setError('Failed to add insight to discovery');
+    }
   };
 
   const renderAnswer = (finding: DiscoveryResponseType) => {
@@ -398,10 +426,35 @@ export function DiscoveryAnalytics() {
 
           {/* Findings by Category */}
           <Box sx={{ mt: 4 }}>
-            {/* Sunburst Diagram */}
-            {findings.length > 0 && (
+            {/* Tabs for Visualization and Chat */}
+            <Paper sx={{ mb: 3 }}>
+              <Tabs
+                value={tabValue}
+                onChange={(e, newValue) => setTabValue(newValue)}
+                variant="fullWidth"
+                indicatorColor="primary"
+                textColor="primary"
+              >
+                <Tab label="Technology Stack" icon={<AssessmentIcon />} iconPosition="start" />
+                <Tab label="Grok AI Assistant" icon={<ChatIcon />} iconPosition="start" />
+              </Tabs>
+            </Paper>
+
+            {/* Tab Content: Technology Stack */}
+            {tabValue === 0 && findings.length > 0 && (
               <Box sx={{ mb: 4 }}>
                 <DiscoverySunburst findings={findings} accountName={selectedAccountName} title="Technology Stack - Hierarchical View" />
+              </Box>
+            )}
+
+            {/* Tab Content: Grok Chat */}
+            {tabValue === 1 && (
+              <Box sx={{ mb: 4 }}>
+                <DiscoveryChat
+                  onInsightSelected={handleInsightSelected}
+                  discoveryCategory={selectedCategoryForChat}
+                  discoveryQuestion={selectedQuestionForChat}
+                />
               </Box>
             )}
 
