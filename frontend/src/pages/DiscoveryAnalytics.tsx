@@ -32,7 +32,9 @@ import {
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
 import { salesforceService, type SalesforceAccount } from '../services/salesforce';
-import discoveryService, { type DiscoverySession, type DiscoveryResponse } from '../services/DiscoveryService';
+import discoveryService, { type DiscoverySession, type DiscoveryNote,
+type DiscoveryResponse as DiscoveryResponseType } from '../services/DiscoveryService';
+import { DiscoverySunburst } from '../components/DiscoverySunburst';
 
 export function DiscoveryAnalytics() {
   const navigate = useNavigate();
@@ -41,7 +43,7 @@ export function DiscoveryAnalytics() {
   const [selectedAccountName, setSelectedAccountName] = useState<string>('');
   const [sessions, setSessions] = useState<DiscoverySession[]>([]);
   const [selectedSession, setSelectedSession] = useState<DiscoverySession | null>(null);
-  const [findings, setFindings] = useState<DiscoveryResponse[]>([]);
+  const [findings, setFindings] = useState<DiscoveryResponseType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,7 +130,7 @@ export function DiscoveryAnalytics() {
     return value || '—';
   };
 
-  const renderAnswer = (finding: DiscoveryResponse) => {
+  const renderAnswer = (finding: DiscoveryResponseType) => {
     // For vendor_multi types, show vendor selections
     if (finding.question_type === 'vendor_multi' && finding.vendor_selections) {
       const vendorKeys = Object.keys(finding.vendor_selections);
@@ -185,7 +187,7 @@ export function DiscoveryAnalytics() {
   };
 
   const getQuestionCategories = () => {
-    const categories: Record<string, DiscoveryResponse[]> = {
+    const categories: Record<string, DiscoveryResponseType[]> = {
       'Security & Compliance': [],
       'Infrastructure & Cloud': [],
       'Development & DevOps': [],
@@ -396,6 +398,13 @@ export function DiscoveryAnalytics() {
 
           {/* Findings by Category */}
           <Box sx={{ mt: 4 }}>
+            {/* Sunburst Diagram */}
+            {findings.length > 0 && (
+              <Box sx={{ mb: 4 }}>
+                <DiscoverySunburst findings={findings} accountName={selectedAccountName} title="Technology Stack - Hierarchical View" />
+              </Box>
+            )}
+
             {getQuestionCategories().map(([category, categoryFindings]) => (
               <Accordion key={category} defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
