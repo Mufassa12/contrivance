@@ -23,17 +23,22 @@ import {
   Lightbulb as LightbulbIcon,
 } from '@mui/icons-material';
 import grokService, { DiscoveryInsight, GrokMessage } from '../services/GrokService';
+import { DiscoveryResponse, DiscoveryNote } from '../services/DiscoveryService';
 
 interface DiscoveryChatProps {
   onInsightSelected?: (insight: DiscoveryInsight) => void;
   discoveryCategory?: string;
   discoveryQuestion?: string;
+  sessionResponses?: DiscoveryResponse[];
+  sessionNotes?: DiscoveryNote[];
 }
 
 export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
   onInsightSelected,
   discoveryCategory,
   discoveryQuestion,
+  sessionResponses = [],
+  sessionNotes = [],
 }) => {
   const [messages, setMessages] = useState<GrokMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -43,33 +48,61 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [clarifyingQuestions, setClarifyingQuestions] = useState<string[]>([]);
   const [showQuestions, setShowQuestions] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [apiKeyDialog, setApiKeyDialog] = useState(!localStorage.getItem('grok_api_key'));
-  const [apiKeyInput, setApiKeyInput] = useState('');
 
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load API key from localStorage
-  useEffect(() => {
-    const savedKey = localStorage.getItem('grok_api_key');
-    if (savedKey) {
-      grokService.setApiKey(savedKey);
+  // Format discovery context for display and Grok
+  const getDiscoveryContext = (): string => {
+    let context = '';
+    
+    if (sessionResponses && sessionResponses.length > 0) {
+      context += 'Current Discovery Responses:\n';
+      sessionResponses.forEach((response, index) => {
+        context += `${index + 1}. ${response.question_title || 'Q' + index}:\n`;
+        
+        // Handle different response_value types
+        const responseValue = response.response_value;
+        const responseText = typeof responseValue === 'string' 
+          ? responseValue 
+          : typeof responseValue === 'object' 
+            ? JSON.stringify(responseValue)
+            : String(responseValue);
+        
+        context += `   - Response: ${responseText}\n`;
+        
+        // Include vendor selections if available
+        if (response.vendor_selections && Object.keys(response.vendor_selections).length > 0) {
+          context += `   - Vendors/Technologies Selected:\n`;
+          Object.entries(response.vendor_selections).forEach(([category, vendors]: [string, any]) => {
+            const vendorList = Array.isArray(vendors) ? vendors.join(', ') : vendors;
+            context += `     * ${category}: ${vendorList}\n`;
+          });
+        }
+        
+        // Include sizing selections if available
+        if (response.sizing_selections && Object.keys(response.sizing_selections).length > 0) {
+          context += `   - Sizing Details:\n`;
+          Object.entries(response.sizing_selections).forEach(([key, value]) => {
+            context += `     * ${key}: ${value}\n`;
+          });
+        }
+      });
+      context += '\n';
     }
-  }, []);
-
-  const handleApiKeySubmit = () => {
-    if (apiKeyInput.trim()) {
-      localStorage.setItem('grok_api_key', apiKeyInput);
-      grokService.setApiKey(apiKeyInput);
-      setApiKeyDialog(false);
-      setApiKeyInput('');
-      setError(null);
-    } else {
-      setError('Please enter a valid API key');
+    
+    if (sessionNotes && sessionNotes.length > 0) {
+      context += 'Discovery Notes:\n';
+      sessionNotes.forEach((note, index) => {
+        context += `${index + 1}. [${note.note_type}] ${note.note_text}\n`;
+      });
     }
+    
+    return context;
   };
 
   const handleSendMessage = async () => {
@@ -84,8 +117,14 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
     setLoading(true);
 
     try {
+      // Include discovery context if available
+      const context = getDiscoveryContext();
+      const messageWithContext = context 
+        ? `Based on this discovery data:\n${context}\n\nUser question: ${userMessage}`
+        : userMessage;
+      
       // Get response from Grok
-      const response = await grokService.sendMessage(userMessage);
+      const response = await grokService.sendMessage(messageWithContext);
       setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get response');
@@ -168,35 +207,6 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
 
   return (
     <>
-      {/* API Key Dialog */}
-      <Dialog open={apiKeyDialog} onClose={() => setApiKeyDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Grok API Configuration</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <Typography variant="body2" color="textSecondary">
-              Enter your Grok API key to enable discovery chat features. Get your key from{' '}
-              <a href="https://grok-api.apidog.io" target="_blank" rel="noopener noreferrer">
-                grok-api.apidog.io
-              </a>
-            </Typography>
-            <TextField
-              label="API Key"
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              fullWidth
-              placeholder="sk-..."
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setApiKeyDialog(false)}>Cancel</Button>
-          <Button onClick={handleApiKeySubmit} variant="contained">
-            Save & Continue
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       {/* Main Chat Container */}
       <Paper
         sx={{
@@ -236,6 +246,16 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
                   Get Questions
                 </Button>
               )}
+              {(sessionResponses?.length > 0 || sessionNotes?.length > 0) && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  onClick={() => setShowContext(!showContext)}
+                >
+                  {showContext ? 'Hide' : 'Show'} Context
+                </Button>
+              )}
               <Button
                 size="small"
                 variant="outlined"
@@ -248,6 +268,65 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
             </Stack>
           </Stack>
         </Box>
+
+        {/* Discovery Context */}
+        {showContext && (sessionResponses?.length > 0 || sessionNotes?.length > 0) && (
+          <Box sx={{ p: 2, bgcolor: 'info.lighter', borderBottom: '1px solid', borderColor: 'divider', maxHeight: '200px', overflowY: 'auto' }}>
+            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>
+              📋 Current Discovery Context
+            </Typography>
+            {sessionResponses && sessionResponses.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontWeight: 'bold' }}>
+                  Responses:
+                </Typography>
+                {sessionResponses.map((response, idx) => (
+                  <Box key={idx} sx={{ ml: 1, mb: 1 }}>
+                    <Typography variant="caption" display="block" sx={{ fontWeight: 'bold' }}>
+                      • {response.question_title}
+                    </Typography>
+                    <Typography variant="caption" display="block" sx={{ ml: 1 }}>
+                      {(() => {
+                        const val = response.response_value;
+                        const str = typeof val === 'string' 
+                          ? val 
+                          : typeof val === 'object'
+                            ? JSON.stringify(val)
+                            : String(val);
+                        return str.substring(0, 60) + (str.length > 60 ? '...' : '');
+                      })()}
+                    </Typography>
+                    {response.vendor_selections && Object.keys(response.vendor_selections).length > 0 && (
+                      <Box sx={{ ml: 2 }}>
+                        {Object.entries(response.vendor_selections).map(([category, vendors]: [string, any]) => {
+                          const vendorList = Array.isArray(vendors) ? vendors.join(', ') : vendors;
+                          return (
+                            <Typography key={category} variant="caption" display="block" sx={{ fontSize: '0.7rem' }}>
+                              ↳ {category}: {vendorList}
+                            </Typography>
+                          );
+                        })}
+                      </Box>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+            )}
+            {sessionNotes && sessionNotes.length > 0 && (
+              <Box>
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontWeight: 'bold' }}>
+                  Notes:
+                </Typography>
+                {sessionNotes.map((note, idx) => (
+                  <Typography key={idx} variant="caption" display="block" sx={{ ml: 1 }}>
+                    • [{note.note_type}] {note.note_text.substring(0, 80)}
+                    {note.note_text.length > 80 ? '...' : ''}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Box>
+        )}
 
         {/* Messages Area */}
         <Box
@@ -265,12 +344,6 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', h: '100%' }}>
               <Typography color="textSecondary" align="center">
                 Start a conversation to explore technology options or ask discovery questions.
-                {!localStorage.getItem('grok_api_key') && (
-                  <>
-                    <br />
-                    Configure your API key to get started.
-                  </>
-                )}
               </Typography>
             </Box>
           ) : (
@@ -340,7 +413,7 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
                   handleSendMessage();
                 }
               }}
-              disabled={loading || !localStorage.getItem('grok_api_key')}
+              disabled={loading}
               multiline
               maxRows={3}
             />
@@ -348,7 +421,7 @@ export const DiscoveryChat: React.FC<DiscoveryChatProps> = ({
               variant="contained"
               endIcon={<SendIcon />}
               onClick={handleSendMessage}
-              disabled={loading || !inputValue.trim() || !localStorage.getItem('grok_api_key')}
+              disabled={loading || !inputValue.trim()}
               sx={{ alignSelf: 'flex-end' }}
             >
               Send

@@ -1,6 +1,7 @@
 mod config;
 mod proxy;
 mod middleware;
+mod grok_proxy;
 
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer, HttpResponse, HttpRequest, middleware::Logger};
@@ -180,6 +181,11 @@ async fn main() -> std::io::Result<()> {
                             Err(_) => HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to connect to Salesforce service"}))
                         }
                     }))
+            )
+            // Grok API proxy routes (no auth required for AI assistant)
+            .service(
+                web::scope("/api/grok")
+                    .route("/chat", web::post().to(grok_proxy::proxy_grok_chat))
             )
             // Test route for Salesforce proxy function using contrivance proxy temporarily
             .route("/test-salesforce", web::get().to(proxy::contrivance_proxy))

@@ -41,19 +41,18 @@ export interface DiscoveryInsight {
 }
 
 class GrokServiceClass {
-  private apiKey: string;
   private apiClient: AxiosInstance;
   private conversationHistory: GrokMessage[] = [];
   private systemPrompt: string;
 
   constructor() {
-    this.apiKey = process.env.REACT_APP_GROK_API_KEY || '';
-    
+    // Use backend proxy endpoint instead of calling Grok API directly
+    // Gateway service URL from env or default
+    const gatewayUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
     this.apiClient = axios.create({
-      baseURL: 'https://grok-api.apidog.io',
+      baseURL: gatewayUrl,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
       },
     });
 
@@ -69,14 +68,6 @@ When analyzing discovery questions, provide structured insights about:
 Format your responses as clear, actionable insights that can be mapped to discovery categories. When asked about specific technologies, provide context about their use cases, integration patterns, and potential risks.
 
 Always be concise and focused on practical technology discovery insights.`;
-  }
-
-  /**
-   * Initialize the service with an API key
-   */
-  public setApiKey(apiKey: string): void {
-    this.apiKey = apiKey;
-    this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${apiKey}`;
   }
 
   /**
@@ -100,7 +91,7 @@ Always be concise and focused on practical technology discovery insights.`;
       };
 
       const response = await this.apiClient.post<GrokChatResponse>(
-        '/v1/chat/completions',
+        '/grok/chat',
         request
       );
 

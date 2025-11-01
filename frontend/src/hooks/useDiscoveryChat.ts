@@ -4,7 +4,6 @@ import grokService, { DiscoveryInsight } from '../services/GrokService';
 export interface ChatState {
   isLoading: boolean;
   error: string | null;
-  hasApiKey: boolean;
 }
 
 export interface UseDiscoveryChatReturn {
@@ -13,7 +12,6 @@ export interface UseDiscoveryChatReturn {
   analyzeForDiscovery: (question: string, category?: string) => Promise<DiscoveryInsight[]>;
   getClarifyingQuestions: (category: string) => Promise<string[]>;
   clearChat: () => void;
-  setApiKey: (key: string) => void;
   clearError: () => void;
 }
 
@@ -21,7 +19,6 @@ export const useDiscoveryChat = (): UseDiscoveryChatReturn => {
   const [state, setState] = useState<ChatState>({
     isLoading: false,
     error: null,
-    hasApiKey: !!localStorage.getItem('grok_api_key'),
   });
 
   const sendMessage = useCallback(async (message: string): Promise<string> => {
@@ -74,12 +71,6 @@ export const useDiscoveryChat = (): UseDiscoveryChatReturn => {
     setState((prev) => ({ ...prev, error: null }));
   }, []);
 
-  const setApiKey = useCallback((key: string) => {
-    localStorage.setItem('grok_api_key', key);
-    grokService.setApiKey(key);
-    setState((prev) => ({ ...prev, hasApiKey: true, error: null }));
-  }, []);
-
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
   }, []);
@@ -90,7 +81,6 @@ export const useDiscoveryChat = (): UseDiscoveryChatReturn => {
     analyzeForDiscovery,
     getClarifyingQuestions,
     clearChat,
-    setApiKey,
     clearError,
   };
 };

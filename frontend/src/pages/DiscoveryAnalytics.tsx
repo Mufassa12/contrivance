@@ -54,6 +54,7 @@ export function DiscoveryAnalytics() {
   const [tabValue, setTabValue] = useState(0);
   const [selectedQuestionForChat, setSelectedQuestionForChat] = useState<string>('');
   const [selectedCategoryForChat, setSelectedCategoryForChat] = useState<string>('');
+  const [sessionNotes, setSessionNotes] = useState<DiscoveryNote[]>([]);
 
   // Load accounts on mount
   useEffect(() => {
@@ -119,6 +120,9 @@ export function DiscoveryAnalytics() {
       const sessionData = await discoveryService.getSession(sessionId);
       if (sessionData.responses) {
         setFindings(sessionData.responses);
+      }
+      if (sessionData.notes) {
+        setSessionNotes(sessionData.notes);
       }
     } catch (err) {
       console.error('Error loading findings:', err);
@@ -454,6 +458,8 @@ export function DiscoveryAnalytics() {
                   onInsightSelected={handleInsightSelected}
                   discoveryCategory={selectedCategoryForChat}
                   discoveryQuestion={selectedQuestionForChat}
+                  sessionResponses={findings}
+                  sessionNotes={sessionNotes}
                 />
               </Box>
             )}

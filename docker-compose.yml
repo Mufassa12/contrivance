@@ -122,6 +122,7 @@ services:
       - CONTRIVANCE_SERVICE_URL=http://contrivance-service:8003
       - SALESFORCE_SERVICE_URL=http://salesforce-service:8004
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production-please
+      - GROK_API_KEY=${GROK_API_KEY}
       - PORT=8080
       - RATE_LIMIT_REQUESTS=100
       - RATE_LIMIT_WINDOW_SECONDS=60
